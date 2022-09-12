@@ -95,7 +95,7 @@ def create_circle(r):
 
 def create_polygon(points):
     '''Creates a polygon using the points provided'''
-    points = ["%s,%s " % (x, y) for x, y in points]
+    points = ' '.join(','.join(map(str, p)) for p in points)
     polygon = SVG.polygon(points=points, stroke="black", fill="black")
     polygon.setAttribute("stroke-width", 1)
     return polygon
@@ -230,12 +230,10 @@ class Screen(metaclass=Singleton):
 
     def create_svg_turtle(self, _turtle, name):
         if name in self.shapes:
-            fn = self.shapes[name][0]
-            arg = self.shapes[name][1]
+            fn, arg = self.shapes[name]
         else:
             print("Unknown turtle '%s'; the default turtle will be used")
-            fn = self.shapes[_CFG["shape"]][0]
-            arg = self.shapes[_CFG["shape"]][1]
+            fn, arg = self.shapes[_CFG["shape"]]
         shape = fn(arg)
         if self._mode == 'standard' or self._mode == 'world':
             rotation = -90
@@ -349,7 +347,6 @@ class Screen(metaclass=Singleton):
             - width is the outline width
         """
         self.frame_index += 1
-        shape = ["%s,%s" % self._convert_coordinates(x, y) for x, y in coordlist]
 
         if self._animate:
             style = {'display': 'none'}
@@ -365,7 +362,9 @@ class Screen(metaclass=Singleton):
             else:
                 style['stroke-width'] = 1
 
-        polygon = SVG.polygon(points=" ".join(shape), style=style)
+        points = ' '.join(','.join(map(str, self._convert_coordinates(*p)))
+                          for p in coordlist)
+        polygon = SVG.polygon(points=points, style=style)
 
         if self._animate:
             an = SVG.animate(Id=self.animation_frame_id(self.frame_index),
