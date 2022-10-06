@@ -1287,8 +1287,8 @@ class Turtle(TPen, TNavigator):
                     attributeName="transform",
                     Id=new_frame_id,
                     type="rotate",
-                    From=(self._old_heading, 0, 0),
-                    to=(new_heading, 0, 0),
+                    From=f"{self._old_heading},0,0",
+                    to=f"{new_heading},0,0",
                     begin=previous_end,
                     dur=duration, fill="freeze"))
             else:
@@ -1412,8 +1412,8 @@ class Turtle(TPen, TNavigator):
             appendTo(_turtle, SVG.animateTransform(
                 attributeName="transform",
                 type="rotate",
-                From=(self._old_heading, 0, 0),
-                to=(self._old_heading, 0, 0),
+                From=f"{self._old_heading},0,0",
+                to=f"{self._old_heading},0,0",
                 begin=previous_end,
                 dur=_CFG["min_duration"], fill="freeze"))
 
