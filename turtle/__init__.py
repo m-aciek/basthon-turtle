@@ -420,7 +420,7 @@ class Screen(metaclass=Singleton):
     def _setup_canvas(self):
         self.svg_id = str(uuid4()).replace("-", "")
         self.svg_scene = SVG.svg(width=self.width, height=self.height,
-                                 preserveAspectRatio="xMidYMid slice",
+                                 preserveAspectRatio="xMidYMid meet",
                                  viewBox="0 0 {} {}".format(
                                      self.width, self.height))
         translate = "translate(%d %d)" % self.translate_canvas
