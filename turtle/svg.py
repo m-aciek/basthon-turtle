@@ -2,8 +2,7 @@
 # Author: Romain Casati
 # License: GPL v3 or higher
 
-from js import document
-
+from __future__ import annotations
 
 _svg_ns = "http://www.w3.org/2000/svg"
 _xlink_ns = "http://www.w3.org/1999/xlink"
@@ -48,15 +47,53 @@ _svg_tags = [
 ]
 
 
+class Element:
+    def __init__(self, tag: str, ns=None, value=None):
+        self._tag = tag
+        self._value = value
+        self._ns = ns
+        self._attributes: dict[str, str] = {}
+        self._children: list[Element] = []
+        # this is mandatory to display svg properly
+        if tag == "svg" and ns is not None:
+            self.setAttribute("xmlns", ns)
+
+    def setAttribute(self, attribute: str, value: str):
+        self.setAttributeNS(None, attribute, value)
+
+    def setAttributeNS(self, ns: str | None, attribute: str, value: str):
+        key = attribute
+        if ns is not None:
+            key = f"{ns}:{key}"
+        self._attributes[key] = value
+
+    def appendChild(self, child: Element):
+        self._children.append(child)
+
+    def removeChild(self, other: Element):
+        self._children.remove(other)
+
+    def addEventListener(self, event, callback):
+        pass
+
+    def render_attributes(self) -> str:
+        return " ".join(f'{k}="{v}"' for k, v in self._attributes.items())
+
+    def __str__(self) -> str:
+        open_tag = f"<{self._tag} {self.render_attributes()}>"
+        close_tag = f"</{self._tag}>"
+        content = "".join(str(e) for e in self._children)
+        if self._value is not None:
+            content += self._value
+        return f"{open_tag}{content}{close_tag}"
+
+
 def _tag_func(tag):
     def func(*args, **kwargs):
-        node = document.createElementNS(_svg_ns, tag)
-        # this is mandatory to display svg properly
-        if tag == "svg":
-            node.setAttribute("xmlns", _svg_ns)
+        node = Element(tag, ns=_svg_ns)
         for arg in args:
             if isinstance(arg, (str, int, float)):
-                arg = document.createTextNode(str(arg))
+                arg = Element("text", value=str(arg))
             node.appendChild(arg)
         for key, value in kwargs.items():
             key = key.lower()
