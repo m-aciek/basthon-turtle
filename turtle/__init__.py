@@ -178,7 +178,7 @@ class Screen(metaclass=Singleton):
         if self._old_svg_scene is None:
             raise RuntimeError("No turtle scene ended! "
                                "You should call 'done' first.")
-        html = self._old_svg_scene.outerHTML
+        html = self.svg()
         if isinstance(file, str):
             with open(file, 'w') as f:
                 f.write(html)
