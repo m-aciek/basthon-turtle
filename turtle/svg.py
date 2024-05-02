@@ -77,7 +77,13 @@ class Element:
         pass
 
     def render_attributes(self) -> str:
-        return " ".join(f'{k}="{v}"' for k, v in self._attributes.items())
+        # remove .0 part for int
+        def filter(x):
+            if isinstance(x, float) and int(x) == x:
+                x = int(x)
+            return x
+
+        return " ".join(f'{k}="{filter(v)}"' for k, v in self._attributes.items())
 
     def __str__(self) -> str:
         open_tag = f"<{self._tag} {self.render_attributes()}>"
