@@ -6,7 +6,7 @@ setuptools.setup(
     name="turtle",
     version="0.0.1",
     author="Romain Casati",
-    author_email="Romain.Casati@ac-orleans-tours.fr",
+    author_email="Romain.Casati@basthon.fr",
     description=long_description,
     long_description=long_description,
     url="https://forge.apps.education.fr/basthon/basthon-kernel/",
