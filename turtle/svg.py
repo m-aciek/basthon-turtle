@@ -41,6 +41,7 @@ _svg_tags = [
     "stop",
     "svg",
     "text",
+    "inner-text",
     "tref",
     "tspan",
     "use",
@@ -86,6 +87,8 @@ class Element:
         return " ".join(f'{k}="{filter(v)}"' for k, v in self._attributes.items())
 
     def __str__(self) -> str:
+        if self._tag == "inner-text":
+            return str(self._value)
         open_tag = f"<{self._tag} {self.render_attributes()}>"
         close_tag = f"</{self._tag}>"
         content = "".join(str(e) for e in self._children)
@@ -99,7 +102,7 @@ def _tag_func(tag):
         node = Element(tag, ns=_svg_ns)
         for arg in args:
             if isinstance(arg, (str, int, float)):
-                arg = Element("text", value=str(arg))
+                arg = Element("inner-text", value=str(arg))
             node.appendChild(arg)
         for key, value in kwargs.items():
             key = key.lower()
