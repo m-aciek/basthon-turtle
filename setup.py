@@ -11,11 +11,11 @@ setuptools.setup(
     long_description=long_description,
     url="https://forge.apps.education.fr/basthon/basthon-kernel/",
     packages=setuptools.find_packages(),
+    license="GPL-3.0-or-later",
     classifiers=[
         "Intended Audience :: Developers",
         "Topic :: Software Development :: Interpreters",
         "Operating System :: OS Independent",
-        "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
         "Programming Language :: Python :: 3",
     ],
     python_requires=">=3.4",
