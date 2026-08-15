@@ -3,7 +3,7 @@ import setuptools
 long_description = """Brython's Turtle module port to Basthon project."""
 
 setuptools.setup(
-    name="turtle",
+    name="basthon-turtle",
     version="0.0.1",
     author="Romain Casati",
     author_email="Romain.Casati@basthon.fr",
