@@ -1,0 +1,1 @@
+import basthon.turtle._startup; basthon.turtle._startup.install()
