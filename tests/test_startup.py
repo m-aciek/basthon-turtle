@@ -1,3 +1,4 @@
+import importlib
 import sys
 import unittest
 
@@ -6,6 +7,14 @@ from basthon.turtle import _startup
 
 
 class StartupTests(unittest.TestCase):
+    def test_compatibility_shim_overrides_turtle_module(self):
+        previous = sys.modules.pop("turtle", None)
+        self.addCleanup(self._restore_turtle, previous)
+
+        turtle = importlib.import_module("turtle")
+
+        self.assertIs(turtle, basthon_turtle)
+
     def test_install_overrides_turtle_module(self):
         previous = sys.modules.get("turtle")
         self.addCleanup(self._restore_turtle, previous)

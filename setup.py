@@ -140,6 +140,7 @@ setuptools.setup(
         "Changelog": "https://github.com/m-aciek/basthon-turtle/blob/main/CHANGELOG.md",
     },
     packages=setuptools.find_namespace_packages(include=["basthon.*"]),
+    py_modules=["turtle"],
     cmdclass={"build_py": BuildPy},
     license="GPL-3.0-or-later",
     classifiers=[
