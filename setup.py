@@ -108,7 +108,7 @@ setuptools.setup(
     author_email="Romain.Casati@basthon.fr",
     description=long_description,
     long_description=long_description,
-    url="https://forge.apps.education.fr/basthon/basthon-kernel/",
+    url="https://github.com/m-aciek/basthon-turtle",
     packages=setuptools.find_packages(),
     license="GPL-3.0-or-later",
     classifiers=[
