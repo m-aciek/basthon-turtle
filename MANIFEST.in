@@ -1,2 +1,3 @@
+include CHANGELOG.md
 include basthon_turtle.pth
 include basthon_turtle.start

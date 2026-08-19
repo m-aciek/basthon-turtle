@@ -130,12 +130,15 @@ Implementation
 
 setuptools.setup(
     name="basthon-turtle",
-    version="0.0.2",
+    version="0.0.3",
     author="Romain Casati",
     author_email="Romain.Casati@basthon.fr",
-    description=long_description,
+    description="A browser-friendly implementation of Python's turtle module.",
     long_description=long_description,
     url="https://github.com/m-aciek/basthon-turtle",
+    project_urls={
+        "Changelog": "https://github.com/m-aciek/basthon-turtle/blob/main/CHANGELOG.md",
+    },
     packages=setuptools.find_namespace_packages(include=["basthon.*"]),
     cmdclass={"build_py": BuildPy},
     license="GPL-3.0-or-later",
