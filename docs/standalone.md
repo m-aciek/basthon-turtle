@@ -50,13 +50,14 @@ ordering when Python runs ahead of rendering.
 
 The page owns one persistent SVG tree. A `move` command appends at most one new
 line and changes the existing turtle's transform; a `rotate` command only
-changes that transform. Browser animation uses `requestAnimationFrame`, and
-the final coordinates remain as ordinary DOM attributes. No complete SVG
+changes that transform. Ending a fill appends one polygon made from the points
+collected since `begin_fill()`. Browser animation uses `requestAnimationFrame`,
+and final coordinates remain as ordinary DOM attributes. No complete SVG
 document is transmitted, and no earlier operation is replayed.
 
-The PoC covers movement and rotation plus pen up/down, pen color and size,
-turtle visibility, background color, and text. Browser-to-Python events,
-dialogs, and multiple clients are intentionally out of scope.
+The PoC covers movement and rotation plus polygon fills, pen up/down, pen color
+and size, turtle visibility, background color, and text. Browser-to-Python
+events, dialogs, and multiple clients are intentionally out of scope.
 
 `done()` is not a startup trigger. In standalone mode it finalizes the normal
 static scene and waits up to five seconds for queued commands to be handed to
@@ -71,13 +72,16 @@ python examples/standalone_live.py
 
 ## Turtle demo
 
-The non-interactive `peace` demo can use the live browser renderer directly:
+The non-interactive `peace` and `yinyang` demos can use the live browser
+renderer directly:
 
 ```console
 python -m turtledemo.peace
+python -m turtledemo.yinyang
 ```
 
-Its Tk/X11 color names are translated to equivalent browser colors while
-rendering. The public turtle color getters continue to return the original
-names. The full `python -m turtledemo` Tk viewer and interactive demos remain
-outside the standalone proof of concept.
+The Tk/X11 color names used by `peace` are translated to equivalent browser
+colors while rendering. The public turtle color getters continue to return the
+original names. `yinyang` demonstrates that `begin_fill()`/`end_fill()` append
+filled polygons to the existing live scene. The full `python -m turtledemo` Tk
+viewer and interactive demos remain outside the standalone proof of concept.

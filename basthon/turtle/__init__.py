@@ -481,9 +481,10 @@ class Screen(metaclass=Singleton):
             else:
                 style["stroke-width"] = 1
 
-        points = " ".join(
-            ",".join(map(str, self._convert_coordinates(*p))) for p in coordlist
-        )
+        converted_points = [
+            list(self._convert_coordinates(*point)) for point in coordlist
+        ]
+        points = " ".join(",".join(map(str, point)) for point in converted_points)
         polygon = SVG.polygon(points=points, style=style)
 
         if self._animate:
@@ -503,6 +504,15 @@ class Screen(metaclass=Singleton):
             appendTo(polygon, an)
 
         appendTo(self.canvas, polygon)
+        self._emit_live(
+            {
+                "type": "polygon",
+                "points": converted_points,
+                "outline": _browser_color(outline) if outline is not None else None,
+                "fill": _browser_color(fill) if fill is not None else None,
+                "width": width if width is not None else 1,
+            }
+        )
 
     def _new_frame(self):
         """returns a new animation frame index and update the current indes"""

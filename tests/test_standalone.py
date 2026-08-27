@@ -180,6 +180,29 @@ class LiveRenderingTests(unittest.TestCase):
             self.assertEqual(turtle._browser_color(name), rendered)
             self.assertIn(rendered, output)
 
+    def test_turtledemo_yinyang_emits_incremental_live_filled_polygons(self):
+        from turtledemo import yinyang
+
+        session = FakeSession()
+        with mock.patch.object(_standalone, "create_session", return_value=session):
+            result = yinyang.main()
+            turtle.done()
+            output = turtle.svg()
+
+        polygons = [
+            command for command in session.commands if command["type"] == "polygon"
+        ]
+        self.assertEqual(result, "Done!")
+        self.assertEqual(len(polygons), 4)
+        self.assertEqual(
+            {command["fill"] for command in polygons}, {"black", "#ffffff"}
+        )
+        self.assertTrue(all(len(command["points"]) > 2 for command in polygons))
+        for command in polygons:
+            self.assertNotIn("svg", command)
+            self.assertNotIn("scene", command)
+        self.assertIn("<polygon ", output)
+
     def test_turtle_color_getters_preserve_tk_color_names(self):
         session = FakeSession()
         with mock.patch.object(_standalone, "create_session", return_value=session):
@@ -270,6 +293,7 @@ class StandaloneSessionTests(unittest.TestCase):
         client = path.read_text()
 
         self.assertIn('drawing.appendChild(line)', client)
+        self.assertIn('drawing.appendChild(polygon)', client)
         self.assertIn("const queue = []", client)
         self.assertNotIn("document.body.innerHTML", client)
 

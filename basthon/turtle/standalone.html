@@ -102,6 +102,17 @@
         return;
       }
 
+      if (command.type === "polygon") {
+        const polygon = element("polygon", {
+          points: command.points.map(point => point.join(",")).join(" "),
+          fill: command.fill === null ? "none" : command.fill,
+          stroke: command.outline === null ? "none" : command.outline,
+          "stroke-width": command.width
+        });
+        drawing.appendChild(polygon);
+        return;
+      }
+
       if (command.type === "rotate") {
         const state = turtle(command.turtle);
         await animate(command.duration, progress => {
