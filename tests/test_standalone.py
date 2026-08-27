@@ -149,6 +149,53 @@ class LiveRenderingTests(unittest.TestCase):
         self.assertTrue(moves[1]["drawing"])
         self.assertFalse(moves[2]["drawing"])
 
+    def test_clear_is_scoped_to_one_turtle_and_preserves_state(self):
+        session = FakeSession()
+        with mock.patch.object(_standalone, "create_session", return_value=session):
+            first = turtle.Turtle()
+            first.goto(25, 30)
+            first.write("first")
+            second = turtle.Turtle()
+            second.forward(40)
+            first_state = (first.pos(), first.heading(), first.pen())
+            first_items = list(first._drawing_items)
+            second_items = list(second._drawing_items)
+            first.clear()
+
+        self.assertEqual((first.pos(), first.heading(), first.pen()), first_state)
+        self.assertEqual(first._drawing_items, [])
+        self.assertEqual(second._drawing_items, second_items)
+        self.assertTrue(first_items)
+        self.assertTrue(all(item in parent._children for parent, item in first_items))
+        self.assertTrue(
+            all(item._children[-1]._tag == "set" for _parent, item in first_items)
+        )
+        self.assertTrue(all(item in parent._children for parent, item in second_items))
+        self.assertEqual(
+            session.commands[-1], {"type": "clear", "turtle": first._live_id}
+        )
+        writes = [command for command in session.commands if command["type"] == "write"]
+        self.assertEqual(writes[-1]["turtle"], first._live_id)
+
+    def test_clear_removes_static_items_when_animation_is_off(self):
+        session = FakeSession()
+        with mock.patch.object(_standalone, "create_session", return_value=session):
+            screen = turtle.Screen()
+            screen.animation("off")
+            first = turtle.Turtle()
+            first.forward(20)
+            first.write("remove me")
+            second = turtle.Turtle()
+            second.forward(20)
+            first_items = list(first._drawing_items)
+            second_items = list(second._drawing_items)
+            first.clear()
+
+        self.assertTrue(
+            all(item not in parent._children for parent, item in first_items)
+        )
+        self.assertTrue(all(item in parent._children for parent, item in second_items))
+
     def test_done_is_not_the_start_trigger_and_only_flushes_existing_session(self):
         session = FakeSession()
         with mock.patch.object(_standalone, "create_session", return_value=session):
@@ -334,8 +381,10 @@ class LiveRenderingTests(unittest.TestCase):
         self.assertEqual(
             [block.size for block in sorting_animate.s], list(range(1, 11))
         )
-        self.assertNotIn("Screen.onkey() is not implemented", warnings.getvalue())
-        self.assertNotIn("Screen.listen() is not implemented", warnings.getvalue())
+        self.assertEqual(warnings.getvalue(), "")
+        self.assertEqual(
+            [command["type"] for command in session.commands].count("clear"), 2
+        )
 
     def test_static_svg_output_still_works_without_standalone_extra(self):
         with mock.patch.object(_standalone, "create_session", return_value=None):
@@ -569,6 +618,8 @@ class StandaloneSessionTests(unittest.TestCase):
         )
         self.assertIn('ArrowUp: "Up"', client)
         self.assertIn('" ": "space"', client)
+        self.assertIn('if (command.type === "clear")', client)
+        self.assertIn('"data-turtle": command.turtle', client)
         self.assertNotIn("document.body.innerHTML", client)
 
     def test_browser_client_fills_the_viewport_without_scaling_the_drawing(self):

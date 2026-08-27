@@ -477,6 +477,7 @@ class Screen(metaclass=Singleton):
             )
             appendTo(circle, an)
         appendTo(self.canvas, circle)
+        return circle
 
     def _drawline(self, _turtle, coordlist=None, color=None, width=1, speed=None):
         """Draws an animated line with a turtle
@@ -565,9 +566,9 @@ class Screen(metaclass=Singleton):
                     _line.setAttribute("stroke-linecap", "round")
 
         appendTo(self.canvas, _line)
-        return begin, duration, (x0, y0), (x1, y1)
+        return begin, duration, (x0, y0), (x1, y1), _line
 
-    def _drawpoly(self, coordlist, outline=None, fill=None, width=None):
+    def _drawpoly(self, _turtle, coordlist, outline=None, fill=None, width=None):
         """Draws a path according to provided arguments:
         - coordlist is sequence of coordinates
         - fill is filling color
@@ -616,12 +617,14 @@ class Screen(metaclass=Singleton):
         self._emit_live(
             {
                 "type": "polygon",
+                "turtle": _turtle._live_id,
                 "points": converted_points,
                 "outline": _browser_color(outline) if outline is not None else None,
                 "fill": _browser_color(fill) if fill is not None else None,
                 "width": width if width is not None else 1,
             }
         )
+        return polygon
 
     def _new_frame(self):
         """returns a new animation frame index and update the current indes"""
@@ -757,7 +760,7 @@ class Screen(metaclass=Singleton):
         """Return the list of turtles on the screen."""
         return self._turtles
 
-    def _write(self, pos, txt, align, font, color):
+    def _write(self, _turtle, pos, txt, align, font, color):
         """Write txt at pos in canvas with specified font
         and color."""
         if isinstance(color, tuple):
@@ -815,6 +818,7 @@ class Screen(metaclass=Singleton):
         self._emit_live(
             {
                 "type": "write",
+                "turtle": _turtle._live_id,
                 "position": [x, y],
                 "text": txt,
                 "anchor": anchors.get(align, "start"),
@@ -822,6 +826,7 @@ class Screen(metaclass=Singleton):
                 "color": fill,
             }
         )
+        return text
 
     def addshape(self, *args, **kwargs):
         sys.stderr.write("Warning: Screen.addshape() is not implemented.\n")
@@ -1466,6 +1471,7 @@ class Turtle(TPen, TNavigator):
         self._poly = None
         self._creatingPoly = False
         self._fillitem = self._fillpath = None
+        self._drawing_items = []
 
         self.name = shape
         self.svg, rotation = self.screen.create_svg_turtle(self, name=shape)
@@ -1495,7 +1501,28 @@ class Turtle(TPen, TNavigator):
         self.color(_CFG["pencolor"], _CFG["fillcolor"])
 
     def clear(self):
-        sys.stderr.write("Warning: Turtle.clear() is not implemented.\n")
+        """Delete this turtle's drawings without changing its state."""
+        self._fillitem = self._fillpath = None
+        if self._drawing_items:
+            if self.screen._animate:
+                previous_end, new_frame_id = self.screen._new_frame()
+                for index, (_parent, item) in enumerate(self._drawing_items):
+                    clear = SVG.set(
+                        attributeName="display",
+                        attributeType="CSS",
+                        to="none",
+                        begin=previous_end,
+                        dur=_CFG["min_duration"],
+                        fill="freeze",
+                    )
+                    if index == 0:
+                        clear.setAttribute("id", new_frame_id)
+                    appendTo(item, clear)
+            else:
+                for parent, item in self._drawing_items:
+                    parent.removeChild(item)
+            self._drawing_items.clear()
+        self.screen._emit_live({"type": "clear", "turtle": self._live_id})
 
     def shape(self, name=None):
         """Set turtle shape to shape with given name
@@ -1596,13 +1623,14 @@ class Turtle(TPen, TNavigator):
         on this one.
         """
 
-        begin, duration, _from, _to = self.screen._drawline(
+        begin, duration, _from, _to, line = self.screen._drawline(
             self,
             ((self._x, self._y), (x, y)),
             (self._pencolor, self._fillcolor),
             self._pensize,
             self._speed,
         )
+        self._drawing_items.append((self.screen.canvas, line))
         self.screen._emit_live(
             {
                 "type": "move",
@@ -1714,11 +1742,13 @@ class Turtle(TPen, TNavigator):
     def end_fill(self):
         """Fill the shape drawn after the call begin_fill()."""
         if self.filling() and len(self._fillpath) > 2:
-            self.screen._drawpoly(
+            polygon = self.screen._drawpoly(
+                self,
                 self._fillpath,
                 outline=self._pencolor,
                 fill=self._fillcolor,
             )
+            self._drawing_items.append((self.screen.canvas, polygon))
         else:
             print("No path to fill.")
         self._fillpath = None
@@ -1730,12 +1760,16 @@ class Turtle(TPen, TNavigator):
         if color is None:
             color = self._pencolor
         item = self.screen._dot((self._x, self._y), size, color=color)
+        self._drawing_items.append((self.screen.canvas, item))
 
     def _write(self, txt, align, font, color=None):
         """Performs the writing for write()"""
         if color is None:
             color = self._pencolor
-        self.screen._write((self._x, self._y), txt, align, font, color)
+        item = self.screen._write(
+            self, (self._x, self._y), txt, align, font, color
+        )
+        self._drawing_items.append((self.screen.writing_canvas, item))
 
     def write(self, arg, align="left", font=("Arial", 8, "normal"), color=None):
         """Write text at the current turtle position.

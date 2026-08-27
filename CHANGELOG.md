@@ -5,6 +5,7 @@
     in standalone mode.
   * Added standalone key press and release events through `onkeypress()`,
     `onkey()`, and `onkeyrelease()`.
+  * Implemented `Turtle.clear()` for static and standalone drawings.
   * Added live rendering for built-in turtle shapes, including the rectangular
     blocks used by `turtledemo.sorting_animate`.
   * Fixed horizontal scaling in custom world coordinates.

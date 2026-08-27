@@ -218,7 +218,8 @@
             x1: command.from[0], y1: command.from[1],
             x2: command.from[0], y2: command.from[1],
             stroke: command.color, "stroke-width": command.width,
-            "stroke-linecap": command.width > 2 ? "round" : "butt"
+            "stroke-linecap": command.width > 2 ? "round" : "butt",
+            "data-turtle": command.turtle
           });
           drawing.appendChild(line);
         }
@@ -236,7 +237,8 @@
           points: command.points.map(point => point.join(",")).join(" "),
           fill: command.fill === null ? "none" : command.fill,
           stroke: command.outline === null ? "none" : command.outline,
-          "stroke-width": command.width
+          "stroke-width": command.width,
+          "data-turtle": command.turtle
         });
         drawing.appendChild(polygon);
         return;
@@ -303,6 +305,15 @@
         return;
       }
 
+      if (command.type === "clear") {
+        for (const layer of [drawing, writing]) {
+          for (const node of [...layer.children]) {
+            if (node.dataset.turtle === command.turtle) node.remove();
+          }
+        }
+        return;
+      }
+
       if (command.type === "background") {
         screen.style.backgroundColor = command.color;
         return;
@@ -312,7 +323,8 @@
         const node = element("text", {
           x: command.position[0], y: command.position[1], fill: command.color,
           "font-family": command.font[0], "font-size": command.font[1],
-          "font-style": command.font[2], "text-anchor": command.anchor
+          "font-style": command.font[2], "text-anchor": command.anchor,
+          "data-turtle": command.turtle
         });
         node.textContent = command.text;
         writing.appendChild(node);

@@ -62,9 +62,11 @@ SVG screen; clicking the screen restores that focus as well.
 The page owns one persistent SVG tree. A `move` command appends at most one new
 line and changes the existing turtle's transform; a `rotate` command only
 changes that transform. Ending a fill appends one polygon made from the points
-collected since `begin_fill()`. Browser animation uses `requestAnimationFrame`,
-and final coordinates remain as ordinary DOM attributes. No complete SVG
-document is transmitted, and no earlier operation is replayed.
+collected since `begin_fill()`. Lines, fills, and text retain their turtle ID,
+so `Turtle.clear()` removes only that turtle's output. Browser animation uses
+`requestAnimationFrame`, and final coordinates remain as ordinary DOM
+attributes. No complete SVG document is transmitted, and no earlier operation
+is replayed.
 
 The live SVG fills the available browser viewport. As in Tkinter, resizing the
 window reveals more or less of the canvas without scaling the drawing: one
@@ -73,9 +75,10 @@ centered.
 
 The PoC covers movement and rotation plus polygon fills, pen up/down, pen color
 and size, built-in turtle shapes, turtle visibility and sizing, background
-color, text, dragging a turtle with `ondrag()`, and keyboard callbacks through
-`onkeypress()`, `onkey()`, and `onkeyrelease()`. Other browser-to-Python events,
-dialogs, and multiple clients are intentionally out of scope.
+color, text, owner-scoped `Turtle.clear()`, dragging a turtle with `ondrag()`,
+and keyboard callbacks through `onkeypress()`, `onkey()`, and
+`onkeyrelease()`. Other browser-to-Python events, dialogs, and multiple clients
+are intentionally out of scope.
 
 `done()` is not a startup trigger. In standalone mode it finalizes the normal
 static scene and waits up to five seconds for queued commands to be handed to
