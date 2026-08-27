@@ -10,7 +10,7 @@
   </style>
 </head>
 <body>
-  <svg id="screen" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Python turtle graphics">
+  <svg id="screen" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Python turtle graphics" tabindex="0">
     <g id="drawing"></g>
     <g id="writing"></g>
     <g id="turtles"></g>
@@ -30,6 +30,10 @@
     let translate = [0, 0];
     let logicalWidth = 0;
     let logicalHeight = 0;
+    const keyBindings = {
+      keypress: new Set(),
+      keyrelease: new Set()
+    };
 
     function resizeScreenToViewport() {
       const viewportWidth = window.innerWidth;
@@ -44,6 +48,36 @@
     }
 
     window.addEventListener("resize", resizeScreenToViewport);
+
+    function turtleKey(event) {
+      const names = {
+        " ": "space",
+        ArrowUp: "Up",
+        ArrowDown: "Down",
+        ArrowLeft: "Left",
+        ArrowRight: "Right",
+        Enter: "Return",
+        Backspace: "BackSpace",
+        PageUp: "Prior",
+        PageDown: "Next"
+      };
+      return names[event.key] || event.key;
+    }
+
+    function sendKeyEvent(eventName, event) {
+      const key = turtleKey(event);
+      const bindings = keyBindings[eventName];
+      const wildcard = eventName === "keypress" && bindings.has(null);
+      if (!bindings.has(key) && !wildcard) return;
+      if (socket !== null && socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({type: "event", event: eventName, key}));
+      }
+      event.preventDefault();
+    }
+
+    screen.addEventListener("keydown", event => sendKeyEvent("keypress", event));
+    screen.addEventListener("keyup", event => sendKeyEvent("keyrelease", event));
+    screen.addEventListener("pointerdown", () => screen.focus());
 
     function element(tag, attributes = {}) {
       const node = document.createElementNS(ns, tag);
@@ -254,6 +288,18 @@
         state.dragButton = command.button;
         state.dragging = false;
         state.node.style.cursor = state.dragEnabled ? "grab" : "default";
+        return;
+      }
+
+      if (command.type === "bind" && command.target === "screen") {
+        const bindings = keyBindings[command.event];
+        if (command.enabled) bindings.add(command.key);
+        else bindings.delete(command.key);
+        return;
+      }
+
+      if (command.type === "focus") {
+        screen.focus();
         return;
       }
 

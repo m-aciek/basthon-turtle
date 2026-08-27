@@ -49,9 +49,15 @@ FIFO and awaits each animation before starting the next one, which preserves
 ordering when Python runs ahead of rendering.
 
 For `ondrag()` callbacks, the page converts pointer positions to SVG logical
-coordinates and sends them back over the same WebSocket. The server converts
-them to the active turtle world coordinates, calls the registered Python
-function, and queues any resulting drawing or color changes normally.
+coordinates and sends them back over the same WebSocket. Key presses and
+releases are sent through that channel as well, with browser key names mapped
+to turtle names such as `Up`, `Return`, and `space`. The server calls the
+registered Python function and queues any resulting drawing or color changes
+normally.
+
+`onkeypress()` handles browser keydown events, including key repeat, while
+`onkey()` and `onkeyrelease()` handle keyup events. Call `listen()` to focus the
+SVG screen; clicking the screen restores that focus as well.
 
 The page owns one persistent SVG tree. A `move` command appends at most one new
 line and changes the existing turtle's transform; a `rotate` command only
@@ -67,8 +73,9 @@ centered.
 
 The PoC covers movement and rotation plus polygon fills, pen up/down, pen color
 and size, built-in turtle shapes, turtle visibility and sizing, background
-color, text, and dragging a turtle with `ondrag()`. Other browser-to-Python
-events, dialogs, and multiple clients are intentionally out of scope.
+color, text, dragging a turtle with `ondrag()`, and keyboard callbacks through
+`onkeypress()`, `onkey()`, and `onkeyrelease()`. Other browser-to-Python events,
+dialogs, and multiple clients are intentionally out of scope.
 
 `done()` is not a startup trigger. In standalone mode it finalizes the normal
 static scene and waits up to five seconds for queued commands to be handed to

@@ -170,6 +170,63 @@ class LiveRenderingTests(unittest.TestCase):
         self.assertEqual(session.flush_count, 1)
         self.assertEqual(session.wait_count, 1)
 
+    def test_screen_key_press_release_focus_and_unbinding(self):
+        session = FakeSession()
+        up = mock.Mock()
+        any_key = mock.Mock()
+        space = mock.Mock()
+        escape = mock.Mock()
+        with mock.patch.object(_standalone, "create_session", return_value=session):
+            screen = turtle.Screen()
+            screen.onkeypress(up, "Up")
+            screen.onkeypress(any_key)
+            screen.onkey(space, "space")
+            screen.onkeyrelease(escape, "Escape")
+            screen.listen()
+
+        self.assertEqual(
+            [command["type"] for command in session.commands],
+            ["init", "bind", "bind", "bind", "bind", "focus"],
+        )
+        self.assertEqual(
+            [
+                (command["event"], command["key"], command["enabled"])
+                for command in session.commands
+                if command["type"] == "bind"
+            ],
+            [
+                ("keypress", "Up", True),
+                ("keypress", None, True),
+                ("keyrelease", "space", True),
+                ("keyrelease", "Escape", True),
+            ],
+        )
+
+        session.event_handler(
+            {"type": "event", "event": "keypress", "key": "Up"}
+        )
+        up.assert_called_once_with()
+        any_key.assert_not_called()
+        session.event_handler(
+            {"type": "event", "event": "keypress", "key": "x"}
+        )
+        any_key.assert_called_once_with()
+        session.event_handler(
+            {"type": "event", "event": "keyrelease", "key": "space"}
+        )
+        session.event_handler(
+            {"type": "event", "event": "keyrelease", "key": "Escape"}
+        )
+        space.assert_called_once_with()
+        escape.assert_called_once_with()
+
+        screen.onkey(None, "space")
+        self.assertFalse(session.commands[-1]["enabled"])
+        session.event_handler(
+            {"type": "event", "event": "keyrelease", "key": "space"}
+        )
+        space.assert_called_once_with()
+
     def test_drag_events_use_turtle_coordinates_and_shape_size(self):
         session = FakeSession()
         callback = mock.Mock()
@@ -257,6 +314,28 @@ class LiveRenderingTests(unittest.TestCase):
             ],
             [True],
         )
+
+    def test_turtledemo_sorting_keys_trigger_sort(self):
+        from turtledemo import sorting_animate
+
+        session = FakeSession()
+        warnings = io.StringIO()
+        with (
+            mock.patch.object(_standalone, "create_session", return_value=session),
+            contextlib.redirect_stderr(warnings),
+        ):
+            sorting_animate.init_shelf()
+            sorting_animate.enable_keys()
+            turtle.listen()
+            session.event_handler(
+                {"type": "event", "event": "keyrelease", "key": "i"}
+            )
+
+        self.assertEqual(
+            [block.size for block in sorting_animate.s], list(range(1, 11))
+        )
+        self.assertNotIn("Screen.onkey() is not implemented", warnings.getvalue())
+        self.assertNotIn("Screen.listen() is not implemented", warnings.getvalue())
 
     def test_static_svg_output_still_works_without_standalone_extra(self):
         with mock.patch.object(_standalone, "create_session", return_value=None):
@@ -482,6 +561,14 @@ class StandaloneSessionTests(unittest.TestCase):
         self.assertIn('state.node.addEventListener("pointermove"', client)
         self.assertIn('node = element("rect"', client)
         self.assertIn('if (command.type === "turtle_shape")', client)
+        self.assertIn(
+            'screen.addEventListener("keydown", event => sendKeyEvent', client
+        )
+        self.assertIn(
+            'screen.addEventListener("keyup", event => sendKeyEvent', client
+        )
+        self.assertIn('ArrowUp: "Up"', client)
+        self.assertIn('" ": "space"', client)
         self.assertNotIn("document.body.innerHTML", client)
 
     def test_browser_client_fills_the_viewport_without_scaling_the_drawing(self):

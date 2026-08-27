@@ -3,6 +3,8 @@
 * Unreleased:
   * Added live turtle dragging and shape sizing, enabling `turtledemo.colormixer`
     in standalone mode.
+  * Added standalone key press and release events through `onkeypress()`,
+    `onkey()`, and `onkeyrelease()`.
   * Added live rendering for built-in turtle shapes, including the rectangular
     blocks used by `turtledemo.sorting_animate`.
   * Fixed horizontal scaling in custom world coordinates.

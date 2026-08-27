@@ -318,11 +318,39 @@ class Screen(metaclass=Singleton):
             }
         )
 
+    def _register_live_key_event(self, event, fun, key=None):
+        binding = (None, event, key)
+        if fun is None:
+            self._live_event_handlers.pop(binding, None)
+        else:
+            self._live_event_handlers[binding] = [fun]
+        self._emit_live(
+            {
+                "type": "bind",
+                "target": "screen",
+                "event": event,
+                "key": key,
+                "enabled": fun is not None,
+            }
+        )
+
     def _handle_live_event(self, event):
         if event.get("type") != "event":
             return
+        event_name = event.get("event")
+        if event_name in {"keypress", "keyrelease"}:
+            callbacks = self._live_event_handlers.get(
+                (None, event_name, event.get("key")), ()
+            )
+            if not callbacks and event_name == "keypress":
+                callbacks = self._live_event_handlers.get(
+                    (None, event_name, None), ()
+                )
+            for callback in tuple(callbacks):
+                callback()
+            return
         callbacks = self._live_event_handlers.get(
-            (event.get("turtle"), event.get("event")), ()
+            (event.get("turtle"), event_name), ()
         )
         if not callbacks:
             return
@@ -831,20 +859,24 @@ class Screen(metaclass=Singleton):
     def getshapes(self, *args, **kwargs):
         sys.stderr.write("Warning: Screen.getshapes() is not implemented.\n")
 
-    def listen(self, *args, **kwargs):
-        sys.stderr.write("Warning: Screen.listen() is not implemented.\n")
+    def listen(self, xdummy=None, ydummy=None):
+        """Focus the standalone turtle screen for keyboard events."""
+        self._emit_live({"type": "focus"})
 
     def numinput(self, *args, **kwargs):
         sys.stderr.write("Warning: Screen.numinput() is not implemented.\n")
 
-    def onkey(self, *args, **kwargs):
-        sys.stderr.write("Warning: Screen.onkey() is not implemented.\n")
+    def onkey(self, fun, key):
+        """Bind a callback to the release of a key."""
+        self._register_live_key_event("keyrelease", fun, key)
 
-    def onkeypress(self, *args, **kwargs):
-        sys.stderr.write("Warning: Screen.onkeypress() is not implemented.\n")
+    def onkeypress(self, fun, key=None):
+        """Bind a callback to a key press, optionally for any key."""
+        self._register_live_key_event("keypress", fun, key)
 
-    def onkeyrelease(self, *args, **kwargs):
-        sys.stderr.write("Warning: Screen.onkeyrelease() is not implemented.\n")
+    def onkeyrelease(self, fun, key):
+        """Bind a callback to the release of a key."""
+        self.onkey(fun, key)
 
     def onscreenclick(self, *args, **kwargs):
         sys.stderr.write("Warning: Screen.onscreenclick() is not implemented.\n")
