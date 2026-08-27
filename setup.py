@@ -99,7 +99,7 @@ webbrowser
 
     def show_svg(svg_content: str) -> bool:
         html = f"<!doctype html><html><body>{svg_content}</body></html>"
-        retrun webbrowser.open(f"data:text/html,{quote(html)}")
+        return webbrowser.open(f"data:text/html,{quote(html)}")
 
 
     forward(100)
@@ -130,7 +130,7 @@ Implementation
 
 setuptools.setup(
     name="basthon-turtle",
-    version="0.0.4",
+    version="0.0.5",
     author="Romain Casati",
     author_email="Romain.Casati@basthon.fr",
     description="A browser-friendly implementation of Python's turtle module.",
