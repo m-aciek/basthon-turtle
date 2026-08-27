@@ -1,5 +1,7 @@
 # Changelog
 
+* Unreleased: Added a proof-of-concept live standalone browser renderer with
+  incremental updates.
 * 0.0.5: Fix typo in package description.
 * 0.0.4: Added a compatibility shim so `import turtle` works after runtime installation with tools such as `micropip`.
 * 0.0.3: Moved the implementation to `basthon.turtle` and improved the mechanism for overriding the standard-library `turtle` module.

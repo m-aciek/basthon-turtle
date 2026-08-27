@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Python Turtle Graphics</title>
+  <style>
+    html, body { height: 100%; margin: 0; }
+    body { display: grid; place-items: center; background: #f3f3f3; }
+    svg { max-width: 100vw; max-height: 100vh; background: white; box-shadow: 0 2px 16px #0002; }
+  </style>
+</head>
+<body>
+  <svg id="screen" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Python turtle graphics">
+    <g id="drawing"></g>
+    <g id="writing"></g>
+    <g id="turtles"></g>
+  </svg>
+  <script>
+    "use strict";
+    const ns = "http://www.w3.org/2000/svg";
+    const screen = document.getElementById("screen");
+    const drawing = document.getElementById("drawing");
+    const writing = document.getElementById("writing");
+    const turtleLayer = document.getElementById("turtles");
+    const turtles = new Map();
+    const queue = [];
+    let consuming = false;
+    let reconnectAttempts = 0;
+    let translate = [0, 0];
+
+    function element(tag, attributes = {}) {
+      const node = document.createElementNS(ns, tag);
+      for (const [name, value] of Object.entries(attributes)) node.setAttribute(name, value);
+      return node;
+    }
+
+    function turtle(id) {
+      if (!turtles.has(id)) {
+        const node = element("polygon", {
+          points: "0,16 -2,14 -1,10 -4,7 -7,9 -9,8 -6,5 -7,1 -5,-3 -8,-6 -6,-8 -4,-5 0,-7 4,-5 6,-8 8,-6 5,-3 7,1 6,5 9,8 7,9 4,7 1,10 2,14",
+          stroke: "black", fill: "black", "stroke-width": 1, opacity: 0
+        });
+        const state = {node, x: 0, y: 0, angle: -90};
+        turtles.set(id, state);
+        turtleLayer.appendChild(node);
+        positionTurtle(state);
+      }
+      return turtles.get(id);
+    }
+
+    function positionTurtle(state) {
+      state.node.setAttribute("transform", `translate(${state.x} ${state.y}) rotate(${state.angle})`);
+    }
+
+    function animate(duration, update) {
+      if (duration <= 1) { update(1); return Promise.resolve(); }
+      return new Promise(resolve => {
+        const start = performance.now();
+        function frame(now) {
+          const progress = Math.min(1, (now - start) / duration);
+          update(progress);
+          if (progress < 1) requestAnimationFrame(frame); else resolve();
+        }
+        requestAnimationFrame(frame);
+      });
+    }
+
+    async function apply(command) {
+      if (command.type === "init") {
+        screen.setAttribute("width", command.width);
+        screen.setAttribute("height", command.height);
+        screen.setAttribute("viewBox", `0 0 ${command.width} ${command.height}`);
+        screen.style.backgroundColor = command.background;
+        translate = command.translate;
+        for (const layer of [drawing, writing, turtleLayer]) layer.replaceChildren();
+        for (const layer of [drawing, writing, turtleLayer]) {
+          layer.setAttribute("transform", `translate(${translate[0]} ${translate[1]})`);
+        }
+        turtles.clear();
+        return;
+      }
+
+      if (command.type === "move") {
+        const state = turtle(command.turtle);
+        let line = null;
+        if (command.drawing) {
+          line = element("line", {
+            x1: command.from[0], y1: command.from[1],
+            x2: command.from[0], y2: command.from[1],
+            stroke: command.color, "stroke-width": command.width,
+            "stroke-linecap": command.width > 2 ? "round" : "butt"
+          });
+          drawing.appendChild(line);
+        }
+        await animate(command.duration, progress => {
+          const x = command.from[0] + (command.to[0] - command.from[0]) * progress;
+          const y = command.from[1] + (command.to[1] - command.from[1]) * progress;
+          if (line) { line.setAttribute("x2", x); line.setAttribute("y2", y); }
+          state.x = x; state.y = y; positionTurtle(state);
+        });
+        return;
+      }
+
+      if (command.type === "rotate") {
+        const state = turtle(command.turtle);
+        await animate(command.duration, progress => {
+          state.angle = command.from + (command.to - command.from) * progress;
+          positionTurtle(state);
+        });
+        return;
+      }
+
+      if (command.type === "visibility") {
+        const state = turtle(command.turtle);
+        state.x = command.x; state.y = command.y; state.angle = command.angle;
+        state.node.setAttribute("opacity", command.visible ? 1 : 0);
+        positionTurtle(state);
+        return;
+      }
+
+      if (command.type === "pen") {
+        const state = turtle(command.turtle);
+        state.node.setAttribute("stroke", command.pencolor);
+        state.node.setAttribute("fill", command.fillcolor);
+        return;
+      }
+
+      if (command.type === "background") {
+        screen.style.backgroundColor = command.color;
+        return;
+      }
+
+      if (command.type === "write") {
+        const node = element("text", {
+          x: command.position[0], y: command.position[1], fill: command.color,
+          "font-family": command.font[0], "font-size": command.font[1],
+          "font-style": command.font[2], "text-anchor": command.anchor
+        });
+        node.textContent = command.text;
+        writing.appendChild(node);
+      }
+    }
+
+    async function consume() {
+      if (consuming) return;
+      consuming = true;
+      while (queue.length) await apply(queue.shift());
+      consuming = false;
+    }
+
+    function connect() {
+      const socket = new WebSocket(`ws://${window.location.host}/ws`);
+      socket.onopen = () => { reconnectAttempts = 0; };
+      socket.onmessage = event => { queue.push(JSON.parse(event.data)); consume(); };
+      socket.onclose = () => {
+        reconnectAttempts += 1;
+        if (reconnectAttempts <= 20) window.setTimeout(connect, 500);
+      };
+    }
+    connect();
+  </script>
+</body>
+</html>

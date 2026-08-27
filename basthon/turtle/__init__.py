@@ -29,11 +29,22 @@ import sys
 from math import cos, sin
 from uuid import uuid4
 
+from . import _standalone
 from . import svg as SVG
 
 
 def appendTo(root, node):
     root.appendChild(node)
+
+
+def _duration_milliseconds(duration):
+    """Convert the existing SVG duration representation for the live client."""
+    value = str(duration).strip()
+    if value.endswith("ms"):
+        return max(0.0, float(value[:-2]))
+    if value.endswith("s"):
+        return max(0.0, float(value[:-1]) * 1000)
+    return max(0.0, float(value) * 1000)
 
 
 # Even though it is a private object, use the same name for the configuration
@@ -144,6 +155,8 @@ class Singleton(type):
 
 class Screen(metaclass=Singleton):
     def __init__(self):
+        self._standalone_session = None
+        self._live_initialized = False
         self.shapes = {
             "arrow": (create_polygon, ((-10, 0), (10, 0), (0, 10))),
             "turtle": (
@@ -219,6 +232,27 @@ class Screen(metaclass=Singleton):
     def animation_frame_id(self, index):
         return "af_{}_{}".format(self.svg_id, index)
 
+    def _live_init_command(self):
+        return {
+            "type": "init",
+            "width": self.width,
+            "height": self.height,
+            "translate": list(self.translate_canvas),
+            "background": self.background_color,
+        }
+
+    def _emit_live(self, command):
+        """Send one semantic operation to the optional standalone renderer."""
+        if self._standalone_session is None:
+            self._standalone_session = _standalone.create_session()
+        session = self._standalone_session
+        if session is None:
+            return
+        if not self._live_initialized:
+            session.emit(self._live_init_command())
+            self._live_initialized = True
+        session.emit(command)
+
     def bgcolor(self, color=None):
         """sets the background with the given color if color is not None,
         else return current background color.
@@ -254,6 +288,7 @@ class Screen(metaclass=Singleton):
             appendTo(rect, an)
 
         appendTo(self.background_canvas, rect)
+        self._emit_live({"type": "background", "color": color})
 
     def _convert_coordinates(self, x, y):
         """In the browser, the increasing y-coordinate is towards the
@@ -520,6 +555,7 @@ class Screen(metaclass=Singleton):
         appendTo(self.svg_scene, self.canvas)
         appendTo(self.svg_scene, self.writing_canvas)
         appendTo(self.svg_scene, self.turtle_canvas)
+        self._live_initialized = False
 
     def setworldcoordinates(self, llx, lly, urx, ury):
         """Set up a user defined coordinate-system.
@@ -625,6 +661,22 @@ class Screen(metaclass=Singleton):
             appendTo(text, an)
 
         appendTo(self.writing_canvas, text)
+        anchors = {
+            "left": "start",
+            "center": "middle",
+            "centre": "middle",
+            "right": "end",
+        }
+        self._emit_live(
+            {
+                "type": "write",
+                "position": [x, y],
+                "text": txt,
+                "anchor": anchors.get(align, "start"),
+                "font": list(font),
+                "color": fill,
+            }
+        )
 
     def addshape(self, *args, **kwargs):
         sys.stderr.write("Warning: Screen.addshape() is not implemented.\n")
@@ -1208,6 +1260,30 @@ class TPen:
             self.forward(0)  # updates the turtle visibility on screen
             self._shown = p["shown"]
 
+        if {"pendown", "pencolor", "fillcolor", "pensize"}.intersection(p):
+            self.screen._emit_live(
+                {
+                    "type": "pen",
+                    "turtle": self._live_id,
+                    "down": self._drawing,
+                    "pencolor": self._pencolor,
+                    "fillcolor": self._fillcolor,
+                    "width": self._pensize,
+                }
+            )
+        if "shown" in p:
+            x, y = self.screen._convert_coordinates(self._x, self._y)
+            self.screen._emit_live(
+                {
+                    "type": "visibility",
+                    "turtle": self._live_id,
+                    "visible": self._shown,
+                    "x": x,
+                    "y": y,
+                    "angle": self._old_heading,
+                }
+            )
+
 
 # No RawTurtle/RawPen for this version, unlike CPython's; only Turtle/Pen
 class Turtle(TPen, TNavigator):
@@ -1220,6 +1296,7 @@ class Turtle(TPen, TNavigator):
     screen = None
 
     def __init__(self, shape=_CFG["shape"], visible=_CFG["visible"]):
+        self._live_id = uuid4().hex
         self.screen = Screen()
         TPen.__init__(self)
         TNavigator.__init__(self, self.screen.mode())
@@ -1333,6 +1410,18 @@ class Turtle(TPen, TNavigator):
             self._pensize,
             self._speed,
         )
+        self.screen._emit_live(
+            {
+                "type": "move",
+                "turtle": self._live_id,
+                "from": list(_from),
+                "to": list(_to),
+                "drawing": self._drawing,
+                "color": self._pencolor,
+                "width": self._pensize,
+                "duration": _duration_milliseconds(duration),
+            }
+        )
         if self._shown:
             if self.screen._animate:
                 appendTo(
@@ -1410,6 +1499,15 @@ class Turtle(TPen, TNavigator):
                 self.svg.setAttribute(
                     "transform", f"translate({x}, {y}) " f"rotate({new_heading}, 0, 0)"
                 )
+            self.screen._emit_live(
+                {
+                    "type": "rotate",
+                    "turtle": self._live_id,
+                    "from": self._old_heading,
+                    "to": new_heading,
+                    "duration": _duration_milliseconds(duration),
+                }
+            )
         self._old_heading = new_heading
 
     def filling(self):
@@ -1588,7 +1686,10 @@ Pen = Turtle
 
 
 def done():
-    Screen().show_scene()
+    screen = Screen()
+    screen.show_scene()
+    if screen._standalone_session is not None:
+        screen._standalone_session.flush()
 
 
 show_scene = done

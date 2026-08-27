@@ -1,0 +1,21 @@
+# basthon-turtle
+
+A browser-friendly implementation of Python's `turtle` module. It supports
+the existing static SVG workflow used by notebooks and a proof-of-concept live
+standalone mode for regular CPython sessions.
+
+```console
+pip install "basthon-turtle[standalone]"
+```
+
+```python
+from turtle import *
+
+forward(100)  # lazily opens a persistent local browser page
+left(90)
+forward(50)   # appends only this movement; earlier drawing is not replayed
+```
+
+See [the standalone mode documentation](docs/standalone.md) for behavior,
+scope, and architecture. A runnable demonstration is available in
+[`examples/standalone_live.py`](examples/standalone_live.py).

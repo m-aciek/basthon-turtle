@@ -30,9 +30,8 @@ class BuildPy(_build_py):
 long_description = """\
 A revised version of CPython's turtle module, browser-friendly.
 
-Note: This version is not intended to be used in interactive mode,
-nor use ``help()`` to look up methods/functions definitions. The docstrings
-have thus been shortened considerably as compared with the CPython's version.
+The optional standalone mode supports interactive CPython use. The abbreviated
+docstrings remain less suitable for ``help()`` than CPython's implementation.
 
 All public methods/functions of the CPython version should exist, if only
 to print out a warning that they are not implemented. The intent is to make
@@ -47,6 +46,13 @@ Installation
 
     pip install basthon-turtle
 
+For a live, persistent browser window in a regular CPython session, install
+the proof-of-concept standalone extra:
+
+.. code:: bash
+
+    pip install "basthon-turtle[standalone]"
+
 or
 
 .. code:: python
@@ -58,6 +64,20 @@ Usage
 -----
 
 Note: if running multiple times you need to restart the state of screen with ``turtle.restart()`` function.
+
+Standalone CPython
+==================
+
+The browser starts lazily on the first visible turtle operation. It remains
+alive between commands and receives incremental drawing updates:
+
+.. code:: python
+
+    from turtle import forward, left
+
+    forward(100)
+    left(90)
+    forward(50)
 
 Jupyter
 =======
@@ -86,26 +106,6 @@ Marimo
     forward(100)
     mo.Html(svg())
 
-webbrowser
-==========
-
-.. code:: python
-
-    import webbrowser
-    from urllib.parse import quote
-
-    from turtle import forward, done, svg
-
-
-    def show_svg(svg_content: str) -> bool:
-        html = f"<!doctype html><html><body>{svg_content}</body></html>"
-        return webbrowser.open(f"data:text/html,{quote(html)}")
-
-
-    forward(100)
-    done()
-
-    show_svg(svg())
 
 Credits
 -------
@@ -141,6 +141,8 @@ setuptools.setup(
     },
     packages=setuptools.find_namespace_packages(include=["basthon.*"]),
     py_modules=["turtle"],
+    package_data={"basthon.turtle": ["standalone.html"]},
+    extras_require={"standalone": ["websockets>=14"]},
     cmdclass={"build_py": BuildPy},
     license="GPL-3.0-or-later",
     classifiers=[
