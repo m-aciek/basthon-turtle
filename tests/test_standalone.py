@@ -174,6 +174,8 @@ class LiveRenderingTests(unittest.TestCase):
         session = FakeSession()
         callback = mock.Mock()
         with mock.patch.object(_standalone, "create_session", return_value=session):
+            screen = turtle.Screen()
+            screen.setworldcoordinates(-1, -0.3, 3, 1.3)
             pen = turtle.Turtle()
             session.commands.clear()
             pen.resizemode("user")
@@ -185,16 +187,17 @@ class LiveRenderingTests(unittest.TestCase):
         self.assertEqual(
             [command["type"] for command in session.commands], ["shape", "bind"]
         )
+        x, y = screen._convert_coordinates(1.25, 0.75)
         session.event_handler(
             {
                 "type": "event",
                 "event": "drag",
                 "turtle": pen._live_id,
-                "x": 30,
-                "y": -40,
+                "x": x,
+                "y": y,
             }
         )
-        callback.assert_called_once_with(30, 40)
+        callback.assert_called_once_with(1.25, 0.75)
 
     def test_static_svg_output_still_works_without_standalone_extra(self):
         with mock.patch.object(_standalone, "create_session", return_value=None):
@@ -279,6 +282,11 @@ class LiveRenderingTests(unittest.TestCase):
         )
         self.assertEqual(
             [command["type"] for command in session.commands].count("bind"), 3
+        )
+        center_x, _ = colormixer.screen._convert_coordinates(1, 0.5)
+        self.assertEqual(
+            center_x + colormixer.screen.translate_canvas[0],
+            colormixer.screen.width / 2,
         )
 
         x, y = colormixer.screen._convert_coordinates(0, 0.75)

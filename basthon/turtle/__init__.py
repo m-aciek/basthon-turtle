@@ -326,7 +326,7 @@ class Screen(metaclass=Singleton):
         )
         if not callbacks:
             return
-        x = event["x"] / self.yscale
+        x = event["x"] / self.xscale
         y = event["y"] / (self.y_points_down * self.yscale)
         for callback in tuple(callbacks):
             callback(x, y)
@@ -380,7 +380,7 @@ class Screen(metaclass=Singleton):
         This method makes the necessary orientation. It should be called
         just prior to creating any SVG element.
         """
-        return x * self.yscale, self.y_points_down * y * self.yscale
+        return x * self.xscale, self.y_points_down * y * self.yscale
 
     def create_svg_turtle(self, _turtle, name):
         if name in self.shapes:
