@@ -66,9 +66,9 @@ turtle coordinate unit remains one CSS pixel, and the configured canvas stays
 centered.
 
 The PoC covers movement and rotation plus polygon fills, pen up/down, pen color
-and size, turtle visibility and sizing, background color, text, and dragging a
-turtle with `ondrag()`. Other browser-to-Python events, dialogs, and multiple
-clients are intentionally out of scope.
+and size, built-in turtle shapes, turtle visibility and sizing, background
+color, text, and dragging a turtle with `ondrag()`. Other browser-to-Python
+events, dialogs, and multiple clients are intentionally out of scope.
 
 `done()` is not a startup trigger. In standalone mode it finalizes the normal
 static scene and waits up to five seconds for queued commands to be handed to

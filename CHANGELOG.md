@@ -3,6 +3,8 @@
 * Unreleased:
   * Added live turtle dragging and shape sizing, enabling `turtledemo.colormixer`
     in standalone mode.
+  * Added live rendering for built-in turtle shapes, including the rectangular
+    blocks used by `turtledemo.sorting_animate`.
   * Fixed horizontal scaling in custom world coordinates.
 * 0.1.1:
   * Added support for RGB sequences and separate RGB components in `color()`, `pencolor()`, `fillcolor()`,

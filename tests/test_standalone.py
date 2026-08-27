@@ -199,6 +199,65 @@ class LiveRenderingTests(unittest.TestCase):
         )
         callback.assert_called_once_with(1.25, 0.75)
 
+    def test_shape_changes_update_live_geometry_and_public_state(self):
+        session = FakeSession()
+        with mock.patch.object(_standalone, "create_session", return_value=session):
+            pen = turtle.Turtle(visible=False)
+            session.commands.clear()
+            pen.shape("circle")
+
+        self.assertEqual(pen.shape(), "circle")
+        self.assertEqual(
+            session.commands,
+            [
+                {
+                    "type": "turtle_shape",
+                    "turtle": pen._live_id,
+                    "name": "circle",
+                    "geometry": {"kind": "circle", "radius": 10},
+                }
+            ],
+        )
+
+    def test_turtledemo_sorting_blocks_use_live_rectangles(self):
+        from turtledemo.sorting_animate import Block
+
+        session = FakeSession()
+        with mock.patch.object(_standalone, "create_session", return_value=session):
+            block = Block(4)
+
+        shape_commands = [
+            command
+            for command in session.commands
+            if command["type"] == "turtle_shape"
+            and command["turtle"] == block._live_id
+        ]
+        self.assertEqual(
+            shape_commands,
+            [
+                {
+                    "type": "turtle_shape",
+                    "turtle": block._live_id,
+                    "name": "square",
+                    "geometry": {
+                        "kind": "rectangle",
+                        "width": 20,
+                        "height": 20,
+                    },
+                }
+            ],
+        )
+        self.assertEqual(block.shapesize(), (6.0, 1.5, 2))
+        self.assertEqual(
+            [
+                command["visible"]
+                for command in session.commands
+                if command["type"] == "visibility"
+                and command["turtle"] == block._live_id
+            ],
+            [True],
+        )
+
     def test_static_svg_output_still_works_without_standalone_extra(self):
         with mock.patch.object(_standalone, "create_session", return_value=None):
             pen = turtle.Turtle()
@@ -421,6 +480,8 @@ class StandaloneSessionTests(unittest.TestCase):
             'socket.send(JSON.stringify({type: "event", event: "drag"', client
         )
         self.assertIn('state.node.addEventListener("pointermove"', client)
+        self.assertIn('node = element("rect"', client)
+        self.assertIn('if (command.type === "turtle_shape")', client)
         self.assertNotIn("document.body.innerHTML", client)
 
     def test_browser_client_fills_the_viewport_without_scaling_the_drawing(self):

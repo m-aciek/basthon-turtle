@@ -395,6 +395,29 @@ class Screen(metaclass=Singleton):
             rotation = 0
         return shape, rotation
 
+    def _live_shape_command(self, turtle_id, name):
+        """Serialize a built-in turtle shape for the standalone renderer."""
+        if name not in self.shapes:
+            name = _CFG["shape"]
+        fn, arg = self.shapes[name]
+        if fn is create_polygon:
+            geometry = {
+                "kind": "polygon",
+                "points": [list(point) for point in arg],
+            }
+        elif fn is create_square:
+            geometry = {"kind": "rectangle", "width": arg, "height": arg}
+        elif fn is create_circle:
+            geometry = {"kind": "circle", "radius": arg}
+        else:
+            raise TurtleGraphicsError("unsupported live turtle shape: %s" % name)
+        return {
+            "type": "turtle_shape",
+            "turtle": turtle_id,
+            "name": name,
+            "geometry": geometry,
+        }
+
     def _dot(self, pos, size, color):
         """Draws a filled circle of specified size and color"""
         if color is None:
@@ -1416,6 +1439,7 @@ class Turtle(TPen, TNavigator):
         self.svg, rotation = self.screen.create_svg_turtle(self, name=shape)
         self.svg.setAttribute("opacity", 0)
         self._shown = False
+        self.screen._emit_live(self.screen._live_shape_command(self._live_id, shape))
         if visible:
             self.showturtle()  # will ensure that turtle become visible at appropriate time
         self.screen._turtles.append(self)
@@ -1454,7 +1478,9 @@ class Turtle(TPen, TNavigator):
             self.hideturtle()
         appendTo(self.screen.turtle_canvas, self.svg)
         self.svg = _turtle
+        self.name = name
         self.screen._turtles.append(self)
+        self.screen._emit_live(self.screen._live_shape_command(self._live_id, name))
         if visible:
             self.showturtle()
 

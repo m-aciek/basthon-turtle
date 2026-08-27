@@ -51,19 +51,47 @@
       return node;
     }
 
+    function shapeElement(geometry) {
+      let node;
+      if (geometry.kind === "polygon") {
+        node = element("polygon", {
+          points: geometry.points.map(point => point.join(",")).join(" ")
+        });
+      } else if (geometry.kind === "rectangle") {
+        node = element("rect", {
+          x: -geometry.width / 2, y: -geometry.height / 2,
+          width: geometry.width, height: geometry.height
+        });
+      } else if (geometry.kind === "circle") {
+        node = element("circle", {cx: 0, cy: 0, r: geometry.radius});
+      } else {
+        throw new Error(`Unsupported turtle shape: ${geometry.kind}`);
+      }
+      node.setAttribute("vector-effect", "non-scaling-stroke");
+      return node;
+    }
+
+    function replaceTurtleShape(state, geometry) {
+      state.shape = shapeElement(geometry);
+      state.node.replaceChildren(state.shape);
+    }
+
     function turtle(id) {
       if (!turtles.has(id)) {
-        const node = element("polygon", {
-          points: "0,16 -2,14 -1,10 -4,7 -7,9 -9,8 -6,5 -7,1 -5,-3 -8,-6 -6,-8 -4,-5 0,-7 4,-5 6,-8 8,-6 5,-3 7,1 6,5 9,8 7,9 4,7 1,10 2,14",
+        const node = element("g", {
           stroke: "black", fill: "black", "stroke-width": 1, opacity: 0
         });
         const state = {
-          node, x: 0, y: 0, angle: -90,
+          node, shape: null, x: 0, y: 0, angle: -90,
           stretchWidth: 1, stretchLength: 1, outline: 1,
           dragEnabled: false, dragButton: 1, dragging: false
         };
         turtles.set(id, state);
         turtleLayer.appendChild(node);
+        replaceTurtleShape(state, {
+          kind: "polygon",
+          points: [[0,16],[-2,14],[-1,10],[-4,7],[-7,9],[-9,8],[-6,5],[-7,1],[-5,-3],[-8,-6],[-6,-8],[-4,-5],[0,-7],[4,-5],[6,-8],[8,-6],[5,-3],[7,1],[6,5],[9,8],[7,9],[4,7],[1,10],[2,14]]
+        });
         installTurtleEvents(id, state);
         positionTurtle(state);
       }
@@ -204,13 +232,18 @@
         return;
       }
 
+      if (command.type === "turtle_shape") {
+        const state = turtle(command.turtle);
+        replaceTurtleShape(state, command.geometry);
+        return;
+      }
+
       if (command.type === "shape") {
         const state = turtle(command.turtle);
         state.stretchWidth = command.stretch_width;
         state.stretchLength = command.stretch_length;
         state.outline = command.outline;
         state.node.setAttribute("stroke-width", state.outline);
-        state.node.setAttribute("vector-effect", "non-scaling-stroke");
         positionTurtle(state);
         return;
       }
