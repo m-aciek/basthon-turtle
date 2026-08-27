@@ -297,6 +297,21 @@ class StandaloneSessionTests(unittest.TestCase):
         self.assertIn("const queue = []", client)
         self.assertNotIn("document.body.innerHTML", client)
 
+    def test_browser_client_fills_the_viewport_without_scaling_the_drawing(self):
+        path = PROJECT_ROOT / "basthon" / "turtle" / "standalone.html"
+        client = path.read_text()
+
+        self.assertIn("width: 100vw; height: 100vh", client)
+        self.assertIn(
+            'window.addEventListener("resize", resizeScreenToViewport)', client
+        )
+        self.assertIn("(logicalWidth - viewportWidth) / 2", client)
+        self.assertIn("(logicalHeight - viewportHeight) / 2", client)
+        self.assertIn(
+            '`${x} ${y} ${viewportWidth} ${viewportHeight}`',
+            client,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

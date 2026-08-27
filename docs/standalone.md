@@ -55,6 +55,11 @@ collected since `begin_fill()`. Browser animation uses `requestAnimationFrame`,
 and final coordinates remain as ordinary DOM attributes. No complete SVG
 document is transmitted, and no earlier operation is replayed.
 
+The live SVG fills the available browser viewport. As in Tkinter, resizing the
+window reveals more or less of the canvas without scaling the drawing: one
+turtle coordinate unit remains one CSS pixel, and the configured canvas stays
+centered.
+
 The PoC covers movement and rotation plus polygon fills, pen up/down, pen color
 and size, turtle visibility, background color, and text. Browser-to-Python
 events, dialogs, and multiple clients are intentionally out of scope.
