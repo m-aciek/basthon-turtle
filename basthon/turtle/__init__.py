@@ -82,6 +82,27 @@ def _default_cfg():
 _CFG = _default_cfg()
 
 
+# Tk accepts the X11 color names used by turtledemo.peace, while browsers only
+# recognize the CSS color set. Keep turtle's public color state unchanged and
+# translate these names only when serializing a color for SVG or the live page.
+_TK_COLORS = {
+    "red3": "#cd0000",
+    "orange": "#ffa500",
+    "yellow": "#ffff00",
+    "seagreen4": "#2e8b57",
+    "orchid4": "#8b4789",
+    "royalblue1": "#4876ff",
+    "dodgerblue4": "#104e8b",
+    "white": "#ffffff",
+}
+
+
+def _browser_color(color):
+    if isinstance(color, str):
+        return _TK_COLORS.get(color.lower(), color)
+    return color
+
+
 def set_defaults(**params):
     """Allows to override defaults."""
     _CFG.update(**params)
@@ -238,7 +259,7 @@ class Screen(metaclass=Singleton):
             "width": self.width,
             "height": self.height,
             "translate": list(self.translate_canvas),
-            "background": self.background_color,
+            "background": _browser_color(self.background_color),
         }
 
     def _emit_live(self, command):
@@ -270,7 +291,10 @@ class Screen(metaclass=Singleton):
             y = -height
 
         self.frame_index += 1
-        rect = SVG.rect(x=x, y=y, width=width, height=height, fill=color)
+        rendered_color = _browser_color(color)
+        rect = SVG.rect(
+            x=x, y=y, width=width, height=height, fill=rendered_color
+        )
         if self._animate:
             rect.setAttribute("style", "display: none;")
             an = SVG.animate(
@@ -288,7 +312,7 @@ class Screen(metaclass=Singleton):
             appendTo(rect, an)
 
         appendTo(self.background_canvas, rect)
-        self._emit_live({"type": "background", "color": color})
+        self._emit_live({"type": "background", "color": rendered_color})
 
     def _convert_coordinates(self, x, y):
         """In the browser, the increasing y-coordinate is towards the
@@ -317,6 +341,7 @@ class Screen(metaclass=Singleton):
         """Draws a filled circle of specified size and color"""
         if color is None:
             color = "black"
+        color = _browser_color(color)
         if size is None or size < 1:
             size = 1
         self.frame_index += 1
@@ -352,8 +377,8 @@ class Screen(metaclass=Singleton):
         - speed is the animation speed
         """
 
-        outline = color[0]
-        fill = color[1]
+        outline = _browser_color(color[0])
+        fill = _browser_color(color[1])
 
         x0, y0 = coordlist[0]
         x1, y1 = coordlist[1]
@@ -448,9 +473,9 @@ class Screen(metaclass=Singleton):
             style = {"display": "block"}
 
         if fill is not None:
-            style["fill"] = fill
+            style["fill"] = _browser_color(fill)
         if outline is not None:
-            style["stroke"] = outline
+            style["stroke"] = _browser_color(outline)
             if width is not None:
                 style["stroke-width"] = width
             else:
@@ -616,10 +641,10 @@ class Screen(metaclass=Singleton):
         """Write txt at pos in canvas with specified font
         and color."""
         if isinstance(color, tuple):
-            stroke = color[0]
-            fill = color[1]
+            stroke = _browser_color(color[0])
+            fill = _browser_color(color[1])
         else:
-            fill = color
+            fill = _browser_color(color)
             stroke = None
         x, y = self._convert_coordinates(pos[0], pos[1])
         text = SVG.text(
@@ -1197,6 +1222,8 @@ class TPen:
         if "pencolor" in p:
             old_color = self._pencolor
             self._pencolor = p["pencolor"]
+            old_rendered_color = _browser_color(old_color)
+            rendered_color = _browser_color(self._pencolor)
             previous_end, new_frame_id = self.screen._new_frame()
             if self.screen._animate:
                 anim = SVG.animate(
@@ -1206,17 +1233,19 @@ class TPen:
                     fill="freeze",
                     attributeName="stroke",
                     attributeType="XML",
-                    From=old_color,
-                    to=self._pencolor,
+                    From=old_rendered_color,
+                    to=rendered_color,
                 )
                 appendTo(self.svg, anim)
             else:
-                self.svg.setAttribute("stroke", self._pencolor)
+                self.svg.setAttribute("stroke", rendered_color)
         if "pensize" in p:
             self._pensize = p["pensize"]
         if "fillcolor" in p:
             old_color = self._fillcolor
             self._fillcolor = p["fillcolor"]
+            old_rendered_color = _browser_color(old_color)
+            rendered_color = _browser_color(self._fillcolor)
             previous_end, new_frame_id = self.screen._new_frame()
             if self.screen._animate:
                 anim = SVG.animate(
@@ -1226,12 +1255,12 @@ class TPen:
                     fill="freeze",
                     attributeName="fill",
                     attributeType="XML",
-                    From=old_color,
-                    to=self._fillcolor,
+                    From=old_rendered_color,
+                    to=rendered_color,
                 )
                 appendTo(self.svg, anim)
             else:
-                self.svg.setAttribute("fill", self._fillcolor)
+                self.svg.setAttribute("fill", rendered_color)
         if "speed" in p:
             self._speed = p["speed"]
         if "shown" in p:
@@ -1266,8 +1295,8 @@ class TPen:
                     "type": "pen",
                     "turtle": self._live_id,
                     "down": self._drawing,
-                    "pencolor": self._pencolor,
-                    "fillcolor": self._fillcolor,
+                    "pencolor": _browser_color(self._pencolor),
+                    "fillcolor": _browser_color(self._fillcolor),
                     "width": self._pensize,
                 }
             )
@@ -1417,7 +1446,7 @@ class Turtle(TPen, TNavigator):
                 "from": list(_from),
                 "to": list(_to),
                 "drawing": self._drawing,
-                "color": self._pencolor,
+                "color": _browser_color(self._pencolor),
                 "width": self._pensize,
                 "duration": _duration_milliseconds(duration),
             }
@@ -1597,8 +1626,8 @@ class Turtle(TPen, TNavigator):
         # such an object: we do not want to show it early.
         _turtle, rotation = self.screen.create_svg_turtle(self, name=name)
         _turtle.setAttribute("opacity", 0 if self.screen._animate else 1)
-        _turtle.setAttribute("fill", self._fillcolor)
-        _turtle.setAttribute("stroke", self._pencolor)
+        _turtle.setAttribute("fill", _browser_color(self._fillcolor))
+        _turtle.setAttribute("stroke", _browser_color(self._pencolor))
 
         # We use timed animations to get it with the proper location, orientation
         # and appear at the desired time.

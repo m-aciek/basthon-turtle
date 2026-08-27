@@ -9,6 +9,16 @@ from basthon.turtle import _standalone
 
 
 PROJECT_ROOT = Path(__file__).parents[1]
+PEACE_COLORS = {
+    "red3": "#cd0000",
+    "orange": "#ffa500",
+    "yellow": "#ffff00",
+    "seagreen4": "#2e8b57",
+    "orchid4": "#8b4789",
+    "royalblue1": "#4876ff",
+    "dodgerblue4": "#104e8b",
+    "white": "#ffffff",
+}
 
 
 class FakeSession:
@@ -149,6 +159,37 @@ class LiveRenderingTests(unittest.TestCase):
         self.assertIn("<svg ", output)
         self.assertIn("<line ", output)
         self.assertIn("<animate ", output)
+
+    def test_turtledemo_peace_colors_render_in_live_and_static_output(self):
+        from turtledemo import peace
+
+        session = FakeSession()
+        with mock.patch.object(_standalone, "create_session", return_value=session):
+            result = peace.main()
+            turtle.done()
+            output = turtle.svg()
+
+        self.assertEqual(result, "Done!")
+        rendered_line_colors = {
+            command["color"]
+            for command in session.commands
+            if command["type"] == "move" and command["drawing"]
+        }
+        self.assertLessEqual(set(PEACE_COLORS.values()), rendered_line_colors)
+        for name, rendered in PEACE_COLORS.items():
+            self.assertEqual(turtle._browser_color(name), rendered)
+            self.assertIn(rendered, output)
+
+    def test_turtle_color_getters_preserve_tk_color_names(self):
+        session = FakeSession()
+        with mock.patch.object(_standalone, "create_session", return_value=session):
+            pen = turtle.Turtle()
+            session.commands.clear()
+            pen.color("SeaGreen4")
+            pen.forward(10)
+
+        self.assertEqual(pen.color(), ("SeaGreen4", "SeaGreen4"))
+        self.assertEqual(session.commands[-1]["color"], "#2e8b57")
 
 
 class StandaloneSessionTests(unittest.TestCase):

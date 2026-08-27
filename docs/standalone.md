@@ -68,3 +68,16 @@ Run the example with:
 ```console
 python examples/standalone_live.py
 ```
+
+## Turtle demo
+
+The non-interactive `peace` demo can use the live browser renderer directly:
+
+```console
+python -m turtledemo.peace
+```
+
+Its Tk/X11 color names are translated to equivalent browser colors while
+rendering. The public turtle color getters continue to return the original
+names. The full `python -m turtledemo` Tk viewer and interactive demos remain
+outside the standalone proof of concept.
