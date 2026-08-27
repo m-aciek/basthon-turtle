@@ -103,6 +103,26 @@ def _browser_color(color):
     return color
 
 
+def _colorstr(color, colormode=1.0):
+    """Return a browser color string for an RGB sequence."""
+    if isinstance(color, tuple) and len(color) == 1:
+        color = color[0]
+    if isinstance(color, str):
+        return color
+    try:
+        r, g, b = color
+    except (TypeError, ValueError):
+        raise TurtleGraphicsError("bad color arguments: %s" % str(color))
+    if colormode == 1.0:
+        try:
+            r, g, b = [round(255.0 * component) for component in (r, g, b)]
+        except (TypeError, ValueError):
+            raise TurtleGraphicsError("bad color arguments: %s" % str(color))
+    if not all(0 <= component <= 255 for component in (r, g, b)):
+        raise TurtleGraphicsError("bad color sequence: %s" % str(color))
+    return "#%02x%02x%02x" % (r, g, b)
+
+
 def set_defaults(**params):
     """Allows to override defaults."""
     _CFG.update(**params)
@@ -214,6 +234,7 @@ class Screen(metaclass=Singleton):
             "square": (create_square, 20),
             "circle": (create_circle, 10),
         }
+        self._colormode = 1.0
         self._animate = True
         self._old_svg_scene = None
         self.reset()
@@ -274,12 +295,13 @@ class Screen(metaclass=Singleton):
             self._live_initialized = True
         session.emit(command)
 
-    def bgcolor(self, color=None):
+    def bgcolor(self, *args):
         """sets the background with the given color if color is not None,
         else return current background color.
         """
-        if color is None:
+        if not args:
             return self.background_color
+        color = _colorstr(args, self._colormode)
         self.background_color = color
         width = _CFG["canvwidth"]
         height = _CFG["canvheight"]
@@ -725,8 +747,14 @@ class Screen(metaclass=Singleton):
     def clearscreen(self, *args, **kwargs):
         sys.stderr.write("Warning: Screen.clearscreen() is not implemented.\n")
 
-    def colormode(self, *args, **kwargs):
-        sys.stderr.write("Warning: Screen.colormode() is not implemented.\n")
+    def colormode(self, cmode=None):
+        """Return the color mode or set it to 1.0 or 255."""
+        if cmode is None:
+            return self._colormode
+        if cmode == 1.0:
+            self._colormode = float(cmode)
+        elif cmode == 255:
+            self._colormode = int(cmode)
 
     def delay(self, *args, **kwargs):
         sys.stderr.write("Warning: Screen.delay() is not implemented.\n")
@@ -1104,70 +1132,64 @@ class TPen:
     def color(self, *args):
         """Return or set the pencolor and fillcolor.
 
-        IMPORTANT: this is very different than the CPython's version.
-
-        Colors are using strings in any format recognized by a browser
-        (named color, rgb, rgba, hex, hsl, etc.)
-
         Acceptable arguments:
 
             no argument: returns (pencolor, fillcolor)
-            single string -> sets both pencolor and fillcolor to that value
-            two string arguments -> taken to be pencolor, fillcolor
+            single color or RGB sequence -> sets both colors to that value
+            two colors or RGB sequences -> taken to be pencolor, fillcolor
+            three numbers -> taken to be one RGB color
             tuple of two strings -> taken to be (pencolor, fillcolor)
         """
         if args:
-            pencolor, fillcolor = None, None
             l = len(args)
             if l == 1:
-                if isinstance(args[0], tuple):
+                if (
+                    isinstance(args[0], tuple)
+                    and len(args[0]) == 2
+                    and all(isinstance(color, str) for color in args[0])
+                ):
                     pencolor = args[0][0]
                     fillcolor = args[0][1]
                 else:
                     pencolor = fillcolor = args[0]
             elif l == 2:
                 pencolor, fillcolor = args
-
-            if not isinstance(pencolor, str) or not isinstance(fillcolor, str):
+            elif l == 3:
+                pencolor = fillcolor = args
+            else:
                 raise TurtleGraphicsError("bad color arguments: %s" % str(args))
 
+            pencolor = _colorstr(pencolor, self.screen.colormode())
+            fillcolor = _colorstr(fillcolor, self.screen.colormode())
             self.pen(pencolor=pencolor, fillcolor=fillcolor)
         else:
             return self._pencolor, self._fillcolor
 
-    def pencolor(self, color=None):
+    def pencolor(self, *args):
         """Return or set the pencolor.
 
-        IMPORTANT: this is very different than the CPython's version.
-
-        Colors are using strings in any format recognized by a browser
-        (named color, rgb, rgba, hex, hsl, etc.)
+        Accept a browser color string or RGB components in the current mode.
         """
-        if color is not None:
-            if not isinstance(color, str):
-                raise TurtleGraphicsError("bad color arguments: %s" % str(color))
+        if args:
+            color = _colorstr(args, self.screen.colormode())
             if color == self._pencolor:
                 return
             self.pen(pencolor=color)
         else:
             return self._pencolor
 
-    def fillcolor(self, color=None):
+    def fillcolor(self, *args):
         """Return or set the fillcolor.
 
-        IMPORTANT: this is very different than the CPython's version.
-
-        Colors are using strings in any format recognized by a browser
-        (named color, rgb, rgba, hex, hsl, etc.)
+        Accept a browser color string or RGB components in the current mode.
         """
-        if color is not None:
-            if not isinstance(color, str):
-                raise TurtleGraphicsError("bad color arguments: %s" % str(color))
+        if args:
+            color = _colorstr(args, self.screen.colormode())
             if color == self._fillcolor:
                 return
             self.pen(fillcolor=color)
         else:
-            return self._pencolor
+            return self._fillcolor
 
     def showturtle(self):
         """Makes the turtle visible."""

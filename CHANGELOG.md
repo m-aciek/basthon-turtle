@@ -1,5 +1,10 @@
 # Changelog
 
+* 0.1.1:
+  * Added support for RGB sequences and separate RGB components in `color()`, `pencolor()`, `fillcolor()`,
+    and `bgcolor()`, enabling `turtledemo.rosette`.
+  * Implemented `colormode()` with the CPython-compatible `1.0` and `255` color ranges.
+  * Fixed `fillcolor()` returning the pen color instead of the fill color.
 * 0.1.0:
   * Added a proof-of-concept live standalone browser renderer with incremental movement and polygon-fill updates.
   * Added support for the Tk color names used by `turtledemo.peace`.
