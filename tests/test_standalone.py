@@ -1,4 +1,6 @@
 import ast
+import contextlib
+import io
 import json
 import unittest
 from pathlib import Path
@@ -26,7 +28,9 @@ class FakeSession:
         self.commands = []
         self.start_count = 0
         self.flush_count = 0
+        self.wait_count = 0
         self.started = False
+        self.event_handler = None
 
     def emit(self, command):
         if not self.started:
@@ -36,6 +40,12 @@ class FakeSession:
 
     def flush(self):
         self.flush_count += 1
+
+    def set_event_handler(self, handler):
+        self.event_handler = handler
+
+    def wait_for_disconnect(self):
+        self.wait_count += 1
 
 
 class LiveRenderingTests(unittest.TestCase):
@@ -148,6 +158,43 @@ class LiveRenderingTests(unittest.TestCase):
 
         self.assertEqual(session.start_count, 1)
         self.assertEqual(session.flush_count, 1)
+        self.assertEqual(session.wait_count, 0)
+
+    def test_mainloop_waits_when_browser_callbacks_are_registered(self):
+        session = FakeSession()
+        with mock.patch.object(_standalone, "create_session", return_value=session):
+            pen = turtle.Turtle()
+            pen.ondrag(mock.Mock())
+            turtle.mainloop()
+
+        self.assertEqual(session.flush_count, 1)
+        self.assertEqual(session.wait_count, 1)
+
+    def test_drag_events_use_turtle_coordinates_and_shape_size(self):
+        session = FakeSession()
+        callback = mock.Mock()
+        with mock.patch.object(_standalone, "create_session", return_value=session):
+            pen = turtle.Turtle()
+            session.commands.clear()
+            pen.resizemode("user")
+            pen.shapesize(3, 4, 5)
+            pen.ondrag(callback)
+
+        self.assertEqual(pen.resizemode(), "user")
+        self.assertEqual(pen.shapesize(), (3, 4, 5))
+        self.assertEqual(
+            [command["type"] for command in session.commands], ["shape", "bind"]
+        )
+        session.event_handler(
+            {
+                "type": "event",
+                "event": "drag",
+                "turtle": pen._live_id,
+                "x": 30,
+                "y": -40,
+            }
+        )
+        callback.assert_called_once_with(30, 40)
 
     def test_static_svg_output_still_works_without_standalone_extra(self):
         with mock.patch.object(_standalone, "create_session", return_value=None):
@@ -214,8 +261,75 @@ class LiveRenderingTests(unittest.TestCase):
         self.assertEqual(pen.color(), ("SeaGreen4", "SeaGreen4"))
         self.assertEqual(session.commands[-1]["color"], "#2e8b57")
 
+    def test_turtledemo_colormixer_handles_browser_drag_events(self):
+        from turtledemo import colormixer
+
+        session = FakeSession()
+        warnings = io.StringIO()
+        with (
+            mock.patch.object(_standalone, "create_session", return_value=session),
+            contextlib.redirect_stderr(warnings),
+        ):
+            result = colormixer.main()
+
+        self.assertEqual(result, "EVENTLOOP")
+        self.assertEqual(warnings.getvalue(), "")
+        self.assertEqual(
+            [command["type"] for command in session.commands].count("shape"), 3
+        )
+        self.assertEqual(
+            [command["type"] for command in session.commands].count("bind"), 3
+        )
+
+        x, y = colormixer.screen._convert_coordinates(0, 0.75)
+        session.event_handler(
+            {
+                "type": "event",
+                "event": "drag",
+                "turtle": colormixer.red._live_id,
+                "x": x,
+                "y": y,
+            }
+        )
+
+        self.assertEqual(colormixer.red.ycor(), 0.75)
+        backgrounds = [
+            command for command in session.commands if command["type"] == "background"
+        ]
+        self.assertEqual(backgrounds[-1]["color"], "#bf8080")
+
 
 class StandaloneSessionTests(unittest.TestCase):
+    def test_received_browser_events_are_dispatched(self):
+        session = _standalone.StandaloneSession()
+        handler = mock.Mock()
+        connection = mock.Mock()
+        connection.recv.side_effect = [
+            json.dumps(
+                {
+                    "type": "event",
+                    "event": "drag",
+                    "turtle": "turtle-id",
+                    "x": 10,
+                    "y": 20,
+                }
+            ),
+            None,
+        ]
+        session.set_event_handler(handler)
+
+        session._receive_events(connection)
+
+        handler.assert_called_once_with(
+            {
+                "type": "event",
+                "event": "drag",
+                "turtle": "turtle-id",
+                "x": 10,
+                "y": 20,
+            }
+        )
+
     def test_commands_wait_for_connection_and_are_delivered_in_order(self):
         session = _standalone.StandaloneSession()
         with mock.patch.object(session, "start"):
@@ -295,6 +409,10 @@ class StandaloneSessionTests(unittest.TestCase):
         self.assertIn('drawing.appendChild(line)', client)
         self.assertIn('drawing.appendChild(polygon)', client)
         self.assertIn("const queue = []", client)
+        self.assertIn(
+            'socket.send(JSON.stringify({type: "event", event: "drag"', client
+        )
+        self.assertIn('state.node.addEventListener("pointermove"', client)
         self.assertNotIn("document.body.innerHTML", client)
 
     def test_browser_client_fills_the_viewport_without_scaling_the_drawing(self):

@@ -14,6 +14,7 @@ import socket
 import sys
 import threading
 import time
+import traceback
 import webbrowser
 from collections import deque
 
@@ -46,6 +47,8 @@ class StandaloneSession:
         self._started = False
         self._closed = False
         self._connection = None
+        self._connected_once = False
+        self._event_handler = None
         self._server = None
         self._socket = None
         self._server_thread = None
@@ -110,6 +113,10 @@ class StandaloneSession:
             self._pending.append(payload)
             self._condition.notify_all()
 
+    def set_event_handler(self, handler):
+        """Set the callback for messages received from the browser."""
+        self._event_handler = handler
+
     def flush(self, timeout=5):
         """Wait briefly for queued commands to reach the browser.
 
@@ -126,6 +133,14 @@ class StandaloneSession:
                     break
                 self._condition.wait(remaining)
             return not self._pending
+
+    def wait_for_disconnect(self):
+        """Wait for the first browser client to connect and then disconnect."""
+        with self._condition:
+            while not self._closed and not self._connected_once:
+                self._condition.wait(0.5)
+            while not self._closed and self._connection is not None:
+                self._condition.wait(0.5)
 
     def _serve(self, sock):
         # Keep this import lazy so the base package has no WebSocket dependency.
@@ -155,6 +170,7 @@ class StandaloneSession:
             with serve(
                 self._handle_connection,
                 sock=sock,
+                origins=["http://{}:{}".format(_HOST, self.port), None],
                 process_request=process_request,
             ) as server:
                 self._server = server
@@ -173,7 +189,16 @@ class StandaloneSession:
     def _handle_connection(self, connection):
         with self._condition:
             self._connection = connection
+            self._connected_once = True
             self._condition.notify_all()
+
+        event_thread = threading.Thread(
+            target=self._receive_events,
+            args=(connection,),
+            name="basthon-turtle-events",
+            daemon=True,
+        )
+        event_thread.start()
 
         try:
             while True:
@@ -198,6 +223,27 @@ class StandaloneSession:
                     if self._pending and self._pending[0] == payload:
                         self._pending.popleft()
                     self._condition.notify_all()
+        finally:
+            with self._condition:
+                if self._connection is connection:
+                    self._connection = None
+                self._condition.notify_all()
+
+    def _receive_events(self, connection):
+        try:
+            while True:
+                try:
+                    message = connection.recv()
+                except Exception:
+                    return
+                if message is None:
+                    return
+                try:
+                    event = json.loads(message)
+                    if self._event_handler is not None:
+                        self._event_handler(event)
+                except Exception:
+                    traceback.print_exc()
         finally:
             with self._condition:
                 if self._connection is connection:

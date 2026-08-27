@@ -1,6 +1,8 @@
 # Changelog
 
 * 0.1.1:
+  * Added live turtle dragging and shape sizing, enabling `turtledemo.colormixer`
+    in standalone mode.
   * Added support for RGB sequences and separate RGB components in `color()`, `pencolor()`, `fillcolor()`,
     and `bgcolor()`, enabling `turtledemo.rosette`.
   * Implemented `colormode()` with the CPython-compatible `1.0` and `255` color ranges.

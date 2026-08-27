@@ -198,6 +198,7 @@ class Screen(metaclass=Singleton):
     def __init__(self):
         self._standalone_session = None
         self._live_initialized = False
+        self._live_event_handlers = {}
         self.shapes = {
             "arrow": (create_polygon, ((-10, 0), (10, 0), (0, 10))),
             "turtle": (
@@ -235,6 +236,7 @@ class Screen(metaclass=Singleton):
             "circle": (create_circle, 10),
         }
         self._colormode = 1.0
+        self._delayvalue = 0
         self._animate = True
         self._old_svg_scene = None
         self.reset()
@@ -290,10 +292,44 @@ class Screen(metaclass=Singleton):
         session = self._standalone_session
         if session is None:
             return
+        set_event_handler = getattr(session, "set_event_handler", None)
+        if set_event_handler is not None:
+            set_event_handler(self._handle_live_event)
         if not self._live_initialized:
             session.emit(self._live_init_command())
             self._live_initialized = True
         session.emit(command)
+
+    def _register_live_event(self, turtle_id, event, fun, add=None, button=1):
+        key = (turtle_id, event)
+        if fun is None:
+            self._live_event_handlers.pop(key, None)
+        elif add:
+            self._live_event_handlers.setdefault(key, []).append(fun)
+        else:
+            self._live_event_handlers[key] = [fun]
+        self._emit_live(
+            {
+                "type": "bind",
+                "turtle": turtle_id,
+                "event": event,
+                "button": button,
+                "enabled": fun is not None,
+            }
+        )
+
+    def _handle_live_event(self, event):
+        if event.get("type") != "event":
+            return
+        callbacks = self._live_event_handlers.get(
+            (event.get("turtle"), event.get("event")), ()
+        )
+        if not callbacks:
+            return
+        x = event["x"] / self.yscale
+        y = event["y"] / (self.y_points_down * self.yscale)
+        for callback in tuple(callbacks):
+            callback(x, y)
 
     def bgcolor(self, *args):
         """sets the background with the given color if color is not None,
@@ -552,6 +588,7 @@ class Screen(metaclass=Singleton):
 
     def reset(self):
         self._turtles = []
+        self._live_event_handlers.clear()
         self.frame_index = 0
         self.background_color = "white"
         self._scene_finished = False
@@ -756,8 +793,11 @@ class Screen(metaclass=Singleton):
         elif cmode == 255:
             self._colormode = int(cmode)
 
-    def delay(self, *args, **kwargs):
-        sys.stderr.write("Warning: Screen.delay() is not implemented.\n")
+    def delay(self, delay=None):
+        """Return or set the screen's animation delay in milliseconds."""
+        if delay is None:
+            return self._delayvalue
+        self._delayvalue = delay
 
     def exitonclick(self, *args, **kwargs):
         sys.stderr.write("Warning: Screen.exitonclick() is not implemented.\n")
@@ -1060,9 +1100,16 @@ class TPen:
         self._fillcolor = "black"
         self._speed = 3
         self._stretchfactor = (1.0, 1.0)
+        self._outlinewidth = 1
+        self._resizemode = "noresize"
 
     def resizemode(self, rmode=None):
-        sys.stderr.write("Warning: TPen.resizemode() is not implemented.\n")
+        """Return or set the turtle shape's resizing mode."""
+        if rmode is None:
+            return self._resizemode
+        if rmode not in {"auto", "user", "noresize"}:
+            raise TurtleGraphicsError("bad resizemode value: %s" % str(rmode))
+        self._resizemode = rmode
 
     def pensize(self, width=None):
         """Set or return the line thickness."""
@@ -1420,8 +1467,11 @@ class Turtle(TPen, TNavigator):
     def onclick(self, *args, **kwargs):
         sys.stderr.write("Warning: Turtle.onclick() is not implemented.\n")
 
-    def ondrag(self, *args, **kwargs):
-        sys.stderr.write("Warning: Turtle.ondrag() is not implemented.\n")
+    def ondrag(self, fun, btn=1, add=None):
+        """Bind a callback to browser drag events on this turtle."""
+        self.screen._register_live_event(
+            self._live_id, "drag", fun, add=add, button=btn
+        )
 
     def onrelease(self, *args, **kwargs):
         sys.stderr.write("Warning: Turtle.onrelease() is not implemented.\n")
@@ -1435,8 +1485,32 @@ class Turtle(TPen, TNavigator):
     def undobufferentries(self, *args, **kwargs):
         sys.stderr.write("Warning: Turtle.undobufferentries() is not implemented.\n")
 
-    def shapesize(self, *args, **kwargs):
-        sys.stderr.write("Warning: Turtle.shapesize() is not implemented.\n")
+    def shapesize(self, stretch_wid=None, stretch_len=None, outline=None):
+        """Return or set the turtle shape's stretch factors and outline."""
+        if stretch_wid is stretch_len is outline is None:
+            return (*self._stretchfactor, self._outlinewidth)
+
+        stretch_wid = (
+            self._stretchfactor[0] if stretch_wid is None else stretch_wid
+        )
+        stretch_len = (
+            self._stretchfactor[1] if stretch_len is None else stretch_len
+        )
+        outline = self._outlinewidth if outline is None else outline
+        if stretch_wid <= 0 or stretch_len <= 0 or outline <= 0:
+            raise TurtleGraphicsError("bad shape size")
+
+        self._stretchfactor = (stretch_wid, stretch_len)
+        self._outlinewidth = outline
+        self.screen._emit_live(
+            {
+                "type": "shape",
+                "turtle": self._live_id,
+                "stretch_width": stretch_wid,
+                "stretch_length": stretch_len,
+                "outline": outline,
+            }
+        )
 
     turtlesize = shapesize
 
@@ -1754,7 +1828,17 @@ def done():
 
 
 show_scene = done
-mainloop = done
+
+
+def mainloop():
+    """Finalize drawing and wait while browser event callbacks are active."""
+    done()
+    screen = Screen()
+    session = screen._standalone_session
+    if session is not None and screen._live_event_handlers:
+        wait_for_disconnect = getattr(session, "wait_for_disconnect", None)
+        if wait_for_disconnect is not None:
+            wait_for_disconnect()
 
 
 def replay_scene():

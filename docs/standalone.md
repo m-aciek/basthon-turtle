@@ -48,6 +48,11 @@ them in order over a WebSocket. The browser adds incoming messages to its own
 FIFO and awaits each animation before starting the next one, which preserves
 ordering when Python runs ahead of rendering.
 
+For `ondrag()` callbacks, the page converts pointer positions to SVG logical
+coordinates and sends them back over the same WebSocket. The server converts
+them to the active turtle world coordinates, calls the registered Python
+function, and queues any resulting drawing or color changes normally.
+
 The page owns one persistent SVG tree. A `move` command appends at most one new
 line and changes the existing turtle's transform; a `rotate` command only
 changes that transform. Ending a fill appends one polygon made from the points
@@ -61,13 +66,16 @@ turtle coordinate unit remains one CSS pixel, and the configured canvas stays
 centered.
 
 The PoC covers movement and rotation plus polygon fills, pen up/down, pen color
-and size, turtle visibility, background color, and text. Browser-to-Python
-events, dialogs, and multiple clients are intentionally out of scope.
+and size, turtle visibility and sizing, background color, text, and dragging a
+turtle with `ondrag()`. Other browser-to-Python events, dialogs, and multiple
+clients are intentionally out of scope.
 
 `done()` is not a startup trigger. In standalone mode it finalizes the normal
 static scene and waits up to five seconds for queued commands to be handed to
-the browser; it does not wait for their animations. Unlike Tk's `mainloop()`,
-it does not block an interactive session indefinitely.
+the browser; it does not wait for their animations. `mainloop()` retains that
+non-blocking behavior for drawings without event callbacks, but waits for the
+browser to close when callbacks are registered so interactive scripts stay
+alive.
 
 Run the example with:
 
@@ -77,16 +85,19 @@ python examples/standalone_live.py
 
 ## Turtle demo
 
-The non-interactive `peace` and `yinyang` demos can use the live browser
-renderer directly:
+The `peace`, `yinyang`, and interactive `colormixer` demos can use the live
+browser renderer directly:
 
 ```console
 python -m turtledemo.peace
 python -m turtledemo.yinyang
+python -m turtledemo.colormixer
 ```
 
 The Tk/X11 color names used by `peace` are translated to equivalent browser
 colors while rendering. The public turtle color getters continue to return the
 original names. `yinyang` demonstrates that `begin_fill()`/`end_fill()` append
-filled polygons to the existing live scene. The full `python -m turtledemo` Tk
-viewer and interactive demos remain outside the standalone proof of concept.
+filled polygons to the existing live scene. In `colormixer`, drag the three
+enlarged turtles to change the red, green, and blue components of the
+background. The full `python -m turtledemo` Tk viewer and other interactive
+demos remain outside the standalone proof of concept.

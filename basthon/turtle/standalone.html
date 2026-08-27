@@ -26,6 +26,7 @@
     const queue = [];
     let consuming = false;
     let reconnectAttempts = 0;
+    let socket = null;
     let translate = [0, 0];
     let logicalWidth = 0;
     let logicalHeight = 0;
@@ -56,16 +57,65 @@
           points: "0,16 -2,14 -1,10 -4,7 -7,9 -9,8 -6,5 -7,1 -5,-3 -8,-6 -6,-8 -4,-5 0,-7 4,-5 6,-8 8,-6 5,-3 7,1 6,5 9,8 7,9 4,7 1,10 2,14",
           stroke: "black", fill: "black", "stroke-width": 1, opacity: 0
         });
-        const state = {node, x: 0, y: 0, angle: -90};
+        const state = {
+          node, x: 0, y: 0, angle: -90,
+          stretchWidth: 1, stretchLength: 1, outline: 1,
+          dragEnabled: false, dragButton: 1, dragging: false
+        };
         turtles.set(id, state);
         turtleLayer.appendChild(node);
+        installTurtleEvents(id, state);
         positionTurtle(state);
       }
       return turtles.get(id);
     }
 
     function positionTurtle(state) {
-      state.node.setAttribute("transform", `translate(${state.x} ${state.y}) rotate(${state.angle})`);
+      state.node.setAttribute(
+        "transform",
+        `translate(${state.x} ${state.y}) rotate(${state.angle}) ` +
+          `scale(${state.stretchWidth} ${state.stretchLength})`
+      );
+    }
+
+    function pointerPosition(event) {
+      const point = screen.createSVGPoint();
+      point.x = event.clientX;
+      point.y = event.clientY;
+      const local = point.matrixTransform(screen.getScreenCTM().inverse());
+      return [local.x - translate[0], local.y - translate[1]];
+    }
+
+    function sendDragEvent(id, event) {
+      if (socket === null || socket.readyState !== WebSocket.OPEN) return;
+      const [x, y] = pointerPosition(event);
+      socket.send(JSON.stringify({type: "event", event: "drag", turtle: id, x, y}));
+    }
+
+    function installTurtleEvents(id, state) {
+      state.node.style.touchAction = "none";
+      state.node.addEventListener("pointerdown", event => {
+        if (!state.dragEnabled || event.button + 1 !== state.dragButton) return;
+        state.dragging = true;
+        state.node.setPointerCapture(event.pointerId);
+        state.node.style.cursor = "grabbing";
+        event.preventDefault();
+      });
+      state.node.addEventListener("pointermove", event => {
+        if (!state.dragging) return;
+        sendDragEvent(id, event);
+        event.preventDefault();
+      });
+      for (const name of ["pointerup", "pointercancel"]) {
+        state.node.addEventListener(name, event => {
+          if (!state.dragging) return;
+          state.dragging = false;
+          state.node.style.cursor = state.dragEnabled ? "grab" : "default";
+          if (state.node.hasPointerCapture(event.pointerId)) {
+            state.node.releasePointerCapture(event.pointerId);
+          }
+        });
+      }
     }
 
     function animate(duration, update) {
@@ -154,6 +204,26 @@
         return;
       }
 
+      if (command.type === "shape") {
+        const state = turtle(command.turtle);
+        state.stretchWidth = command.stretch_width;
+        state.stretchLength = command.stretch_length;
+        state.outline = command.outline;
+        state.node.setAttribute("stroke-width", state.outline);
+        state.node.setAttribute("vector-effect", "non-scaling-stroke");
+        positionTurtle(state);
+        return;
+      }
+
+      if (command.type === "bind" && command.event === "drag") {
+        const state = turtle(command.turtle);
+        state.dragEnabled = command.enabled;
+        state.dragButton = command.button;
+        state.dragging = false;
+        state.node.style.cursor = state.dragEnabled ? "grab" : "default";
+        return;
+      }
+
       if (command.type === "background") {
         screen.style.backgroundColor = command.color;
         return;
@@ -178,10 +248,12 @@
     }
 
     function connect() {
-      const socket = new WebSocket(`ws://${window.location.host}/ws`);
-      socket.onopen = () => { reconnectAttempts = 0; };
-      socket.onmessage = event => { queue.push(JSON.parse(event.data)); consume(); };
-      socket.onclose = () => {
+      const connection = new WebSocket(`ws://${window.location.host}/ws`);
+      socket = connection;
+      connection.onopen = () => { reconnectAttempts = 0; };
+      connection.onmessage = event => { queue.push(JSON.parse(event.data)); consume(); };
+      connection.onclose = () => {
+        if (socket === connection) socket = null;
         reconnectAttempts += 1;
         if (reconnectAttempts <= 20) window.setTimeout(connect, 500);
       };
