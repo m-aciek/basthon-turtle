@@ -1,8 +1,8 @@
 # Changelog
 
-* Unreleased: Added a proof-of-concept live standalone browser renderer with
-  incremental movement and polygon-fill updates, plus support for the Tk color
-  names used by `turtledemo.peace`.
+* 0.1.0:
+  * Added a proof-of-concept live standalone browser renderer with incremental movement and polygon-fill updates.
+  * Added support for the Tk color names used by `turtledemo.peace`.
 * 0.0.5: Fix typo in package description.
 * 0.0.4: Added a compatibility shim so `import turtle` works after runtime installation with tools such as `micropip`.
 * 0.0.3: Moved the implementation to `basthon.turtle` and improved the mechanism for overriding the standard-library `turtle` module.
