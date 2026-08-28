@@ -1,6 +1,6 @@
 # Changelog
 
-* Unreleased:
+* 0.1.2:
   * Added live turtle dragging and shape sizing, enabling `turtledemo.colormixer`
     in standalone mode.
   * Added standalone key press and release events through `onkeypress()`,

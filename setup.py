@@ -130,7 +130,7 @@ Implementation
 
 setuptools.setup(
     name="basthon-turtle",
-    version="0.1.1",
+    version="0.1.2",
     author="Maciej Olko",
     author_email="maciej.olko@gmail.com",
     description="A browser-friendly implementation of Python's turtle module.",
