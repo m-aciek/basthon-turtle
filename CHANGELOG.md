@@ -1,5 +1,10 @@
 # Changelog
 
+* 0.2.0:
+  * Added an optional persistent Jupyter renderer that batches turtle commands
+    per cell and animates them in one shared SVG widget.
+  * Added a portable inline canvas by default, with an explicitly optional
+    JupyterLab sidecar and support for synchronized cloned output views.
 * 0.1.2:
   * Added live turtle dragging and shape sizing, enabling `turtledemo.colormixer`
     in standalone mode.

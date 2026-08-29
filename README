@@ -1,8 +1,35 @@
 # basthon-turtle
 
-A browser-friendly implementation of Python's `turtle` module. It supports
-the existing static SVG workflow used by notebooks and a proof-of-concept live
-standalone mode for regular CPython sessions.
+A browser-friendly implementation of Python's `turtle` module. It supports a
+persistent Jupyter widget, the existing static SVG workflow, and a
+proof-of-concept live standalone mode for regular CPython sessions.
+
+## Jupyter
+
+```console
+pip install "basthon-turtle[jupyter]"
+```
+
+```python
+from turtle import *
+
+forward(100)
+left(90)
+forward(50)
+```
+
+With the `jupyter` extra alone, the first visible operation opens one persistent
+inline turtle widget. Commands are buffered while a cell runs, then animated in
+order after the cell finishes. Later cells update the same SVG instead of
+replaying it.
+
+To open the canvas in a JupyterLab sidecar instead, explicitly install
+`basthon-turtle[sidecar]`. Call `jupyter_sidecar(False)` before the first turtle
+operation to force inline rendering when sidecar is installed. See [the Jupyter
+documentation](docs/notebook.md) for details and the built-in JupyterLab
+cloned-output workflow.
+
+## Standalone CPython
 
 ```console
 pip install "basthon-turtle[standalone]"

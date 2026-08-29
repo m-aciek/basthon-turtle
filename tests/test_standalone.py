@@ -582,7 +582,7 @@ class StandaloneSessionTests(unittest.TestCase):
         browser_thread.start.assert_called_once_with()
         self.assertEqual(session.port, 43210)
 
-    def test_base_package_has_only_an_optional_websocket_dependency(self):
+    def test_renderer_extras_separate_portable_and_sidecar_dependencies(self):
         tree = ast.parse((PROJECT_ROOT / "setup.py").read_text())
         setup_call = next(
             node
@@ -595,7 +595,45 @@ class StandaloneSessionTests(unittest.TestCase):
 
         self.assertNotIn("install_requires", keywords)
         extras = ast.literal_eval(keywords["extras_require"])
-        self.assertEqual(extras, {"standalone": ["websockets>=14"]})
+        self.assertEqual(
+            extras,
+            {
+                "jupyter": ["anywidget>=0.9"],
+                "sidecar": ["anywidget>=0.9", "sidecar>=0.8"],
+                "standalone": ["websockets>=14"],
+            },
+        )
+
+    def test_notebook_widget_assets_are_packaged(self):
+        tree = ast.parse((PROJECT_ROOT / "setup.py").read_text())
+        setup_call = next(
+            node
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "setup"
+        )
+        keywords = {keyword.arg: keyword.value for keyword in setup_call.keywords}
+        package_data = ast.literal_eval(keywords["package_data"])
+
+        self.assertEqual(
+            package_data["basthon.turtle"],
+            ["notebook.css", "notebook.mjs", "standalone.html"],
+        )
+
+    def test_notebook_client_rehydrates_history_and_animates_only_the_suffix(self):
+        path = PROJECT_ROOT / "basthon" / "turtle" / "notebook.mjs"
+        client = path.read_text()
+
+        self.assertIn('model.get("history")', client)
+        self.assertIn('model.get("animation_start")', client)
+        self.assertIn("history.slice(0, animationStart)", client)
+        self.assertIn("queue.push({command, instant: true})", client)
+        self.assertIn("history.slice(animationStart)", client)
+        self.assertIn("queue.push({command, instant: false})", client)
+        self.assertIn('model.on("change:history", historyChanged)', client)
+        self.assertIn('model.send({type: "event", event: "drag"', client)
+        self.assertIn('model.send({type: "rendered", count: applied})', client)
 
     def test_browser_client_mutates_a_persistent_svg(self):
         path = PROJECT_ROOT / "basthon" / "turtle" / "standalone.html"

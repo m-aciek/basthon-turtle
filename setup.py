@@ -82,15 +82,27 @@ alive between commands and receives incremental drawing updates:
 Jupyter
 =======
 
+Install the portable persistent Jupyter renderer with:
+
+.. code:: bash
+
+    pip install "basthon-turtle[jupyter]"
+
+Turtle commands are buffered during each cell and animated in one persistent
+inline SVG widget after the cell finishes:
+
 .. code:: python
 
-    from IPython.display import HTML
-    from turtle import forward, done, svg
+    from turtle import forward, left
 
     forward(100)
-    done()
+    left(90)
+    forward(50)
 
-    HTML(svg())
+For a JupyterLab-specific panel, install ``basthon-turtle[sidecar]`` instead.
+Call ``jupyter_sidecar(False)`` before drawing to force the portable inline
+widget when ``sidecar`` is otherwise available. The original ``done()`` and
+``svg()`` workflow remains available.
 
 Marimo
 ======
@@ -130,7 +142,7 @@ Implementation
 
 setuptools.setup(
     name="basthon-turtle",
-    version="0.1.2",
+    version="0.2.0",
     author="Maciej Olko",
     author_email="maciej.olko@gmail.com",
     description="A browser-friendly implementation of Python's turtle module.",
@@ -141,8 +153,14 @@ setuptools.setup(
     },
     packages=setuptools.find_namespace_packages(include=["basthon.*"]),
     py_modules=["turtle"],
-    package_data={"basthon.turtle": ["standalone.html"]},
-    extras_require={"standalone": ["websockets>=14"]},
+    package_data={
+        "basthon.turtle": ["notebook.css", "notebook.mjs", "standalone.html"]
+    },
+    extras_require={
+        "jupyter": ["anywidget>=0.9"],
+        "sidecar": ["anywidget>=0.9", "sidecar>=0.8"],
+        "standalone": ["websockets>=14"],
+    },
     cmdclass={"build_py": BuildPy},
     license="GPL-3.0-or-later",
     classifiers=[

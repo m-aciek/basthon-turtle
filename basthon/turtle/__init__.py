@@ -29,6 +29,7 @@ import sys
 from math import cos, sin
 from uuid import uuid4
 
+from . import _notebook
 from . import _standalone
 from . import svg as SVG
 
@@ -286,9 +287,11 @@ class Screen(metaclass=Singleton):
         }
 
     def _emit_live(self, command):
-        """Send one semantic operation to the optional standalone renderer."""
+        """Send one semantic operation to the optional live renderer."""
         if self._standalone_session is None:
-            self._standalone_session = _standalone.create_session()
+            self._standalone_session = _notebook.create_session()
+            if self._standalone_session is None:
+                self._standalone_session = _standalone.create_session()
         session = self._standalone_session
         if session is None:
             return
@@ -1912,6 +1915,18 @@ class Turtle(TPen, TNavigator):
 Pen = Turtle
 
 
+def jupyter_sidecar(enabled=True):
+    """Choose whether future Jupyter turtle widgets use a sidecar panel."""
+    screen = Singleton._instances.get(Screen)
+    if (
+        screen is not None
+        and screen._standalone_session is not None
+        and screen._standalone_session.started
+    ):
+        raise RuntimeError("configure the Jupyter sidecar before drawing")
+    _notebook.use_sidecar(enabled)
+
+
 def done():
     screen = Screen()
     screen.show_scene()
@@ -2104,7 +2119,15 @@ _tg_turtle_functions = [
 __all__ = (
     _tg_screen_functions
     + _tg_turtle_functions
-    + ["done", "mainloop", "restart", "replay_scene", "Turtle", "Screen"]
+    + [
+        "done",
+        "jupyter_sidecar",
+        "mainloop",
+        "restart",
+        "replay_scene",
+        "Turtle",
+        "Screen",
+    ]
 )
 
 # The following mechanism makes all methods of RawTurtle and Turtle available
