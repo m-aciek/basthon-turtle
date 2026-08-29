@@ -598,8 +598,7 @@ class StandaloneSessionTests(unittest.TestCase):
         self.assertEqual(
             extras,
             {
-                "jupyter": ["anywidget>=0.9"],
-                "marimo": ["anywidget>=0.9", "marimo>=0.9.3"],
+                "notebook": ["anywidget>=0.9"],
                 "sidecar": ["anywidget>=0.9", "sidecar>=0.8"],
                 "standalone": ["websockets>=14"],
             },

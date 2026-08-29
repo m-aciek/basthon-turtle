@@ -7,7 +7,7 @@ proof-of-concept live standalone mode for regular CPython sessions.
 ## Jupyter
 
 ```console
-pip install "basthon-turtle[jupyter]"
+pip install "basthon-turtle[notebook]"
 ```
 
 ```python
@@ -18,7 +18,7 @@ left(90)
 forward(50)
 ```
 
-With the `jupyter` extra alone, the first visible operation opens one persistent
+With the `notebook` extra alone, the first visible operation opens one persistent
 inline turtle widget. Commands are buffered while a cell runs, then animated in
 order after the cell finishes. Later cells update the same SVG instead of
 replaying it.
@@ -32,11 +32,11 @@ cloned-output workflow.
 ## Marimo
 
 ```console
-pip install "basthon-turtle[marimo]"
+pip install "basthon-turtle[notebook]"
 ```
 
 ```python
-from turtle import *
+from turtle import forward, left
 
 forward(100)
 left(90)

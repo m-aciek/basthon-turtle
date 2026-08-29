@@ -86,7 +86,7 @@ Install the portable persistent Jupyter renderer with:
 
 .. code:: bash
 
-    pip install "basthon-turtle[jupyter]"
+    pip install "basthon-turtle[notebook]"
 
 Turtle commands are buffered during each cell and animated in one persistent
 inline SVG widget after the cell finishes:
@@ -111,7 +111,7 @@ Install the native persistent Marimo renderer with:
 
 .. code:: bash
 
-    pip install "basthon-turtle[marimo]"
+    pip install "basthon-turtle[notebook]"
 
 .. code:: python
 
@@ -164,8 +164,7 @@ setuptools.setup(
         "basthon.turtle": ["notebook.css", "notebook.mjs", "standalone.html"]
     },
     extras_require={
-        "jupyter": ["anywidget>=0.9"],
-        "marimo": ["anywidget>=0.9", "marimo>=0.9.3"],
+        "notebook": ["anywidget>=0.9"],
         "sidecar": ["anywidget>=0.9", "sidecar>=0.8"],
         "standalone": ["websockets>=14"],
     },
