@@ -107,16 +107,23 @@ widget when ``sidecar`` is otherwise available. The original ``done()`` and
 Marimo
 ======
 
+Install the native persistent Marimo renderer with:
+
+.. code:: bash
+
+    pip install "basthon-turtle[marimo]"
+
 .. code:: python
 
-    import marimo as mo
-
-    from turtle import forward, done, svg
+    from turtle import forward, left
 
     forward(100)
-    done()
-    forward(100)
-    mo.Html(svg())
+    left(90)
+    forward(50)
+
+The first visible operation mounts a persistent AnyWidget in the current cell.
+Later turtle calls update that canvas without requiring ``done()`` or
+``mo.Html(svg())``.
 
 
 Credits
@@ -158,6 +165,7 @@ setuptools.setup(
     },
     extras_require={
         "jupyter": ["anywidget>=0.9"],
+        "marimo": ["anywidget>=0.9", "marimo>=0.9.3"],
         "sidecar": ["anywidget>=0.9", "sidecar>=0.8"],
         "standalone": ["websockets>=14"],
     },

@@ -1,5 +1,7 @@
 # Changelog
 
+* Unreleased:
+  * Added a native persistent Marimo renderer using Marimo's AnyWidget output.
 * 0.2.0:
   * Added an optional persistent Jupyter renderer that batches turtle commands
     per cell and animates them in one shared SVG widget.

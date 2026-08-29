@@ -599,6 +599,7 @@ class StandaloneSessionTests(unittest.TestCase):
             extras,
             {
                 "jupyter": ["anywidget>=0.9"],
+                "marimo": ["anywidget>=0.9", "marimo>=0.9.3"],
                 "sidecar": ["anywidget>=0.9", "sidecar>=0.8"],
                 "standalone": ["websockets>=14"],
             },

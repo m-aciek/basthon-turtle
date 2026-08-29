@@ -1,7 +1,7 @@
 # basthon-turtle
 
-A browser-friendly implementation of Python's `turtle` module. It supports a
-persistent Jupyter widget, the existing static SVG workflow, and a
+A browser-friendly implementation of Python's `turtle` module. It supports
+persistent Jupyter and Marimo widgets, the existing static SVG workflow, and a
 proof-of-concept live standalone mode for regular CPython sessions.
 
 ## Jupyter
@@ -28,6 +28,25 @@ To open the canvas in a JupyterLab sidecar instead, explicitly install
 operation to force inline rendering when sidecar is installed. See [the Jupyter
 documentation](docs/notebook.md) for details and the built-in JupyterLab
 cloned-output workflow.
+
+## Marimo
+
+```console
+pip install "basthon-turtle[marimo]"
+```
+
+```python
+from turtle import *
+
+forward(100)
+left(90)
+forward(50)
+```
+
+The first visible operation mounts a persistent AnyWidget in the current cell.
+Later cells update the same canvas immediately, without `done()` or
+`mo.Html(svg())`. See [the notebook documentation](docs/notebook.md) for
+details.
 
 ## Standalone CPython
 
