@@ -30,6 +30,7 @@ from math import cos, sin
 from uuid import uuid4
 
 from . import _notebook
+from . import _pyodide
 from . import _standalone
 from . import svg as SVG
 
@@ -290,6 +291,8 @@ class Screen(metaclass=Singleton):
         """Send one semantic operation to the optional live renderer."""
         if self._standalone_session is None:
             self._standalone_session = _notebook.create_session()
+            if self._standalone_session is None:
+                self._standalone_session = _pyodide.create_session()
             if self._standalone_session is None:
                 self._standalone_session = _standalone.create_session()
         session = self._standalone_session

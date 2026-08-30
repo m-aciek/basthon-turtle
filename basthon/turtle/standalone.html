@@ -30,6 +30,11 @@
     let translate = [0, 0];
     let logicalWidth = 0;
     let logicalHeight = 0;
+    const parentTransport = new URLSearchParams(window.location.search)
+      .get("transport") === "parent";
+    const parentOrigin = window.location.origin === "null"
+      ? "*"
+      : window.location.origin;
     const keyBindings = {
       keypress: new Set(),
       keyrelease: new Set()
@@ -69,9 +74,7 @@
       const bindings = keyBindings[eventName];
       const wildcard = eventName === "keypress" && bindings.has(null);
       if (!bindings.has(key) && !wildcard) return;
-      if (socket !== null && socket.readyState === WebSocket.OPEN) {
-        socket.send(JSON.stringify({type: "event", event: eventName, key}));
-      }
+      sendEvent({type: "event", event: eventName, key});
       event.preventDefault();
     }
 
@@ -149,9 +152,18 @@
     }
 
     function sendDragEvent(id, event) {
-      if (socket === null || socket.readyState !== WebSocket.OPEN) return;
       const [x, y] = pointerPosition(event);
-      socket.send(JSON.stringify({type: "event", event: "drag", turtle: id, x, y}));
+      sendEvent({type: "event", event: "drag", turtle: id, x, y});
+    }
+
+    function sendEvent(event) {
+      if (parentTransport) {
+        window.parent.postMessage(
+          {source: "basthon-turtle", type: "event", event}, parentOrigin
+        );
+      } else if (socket !== null && socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify(event));
+      }
     }
 
     function installTurtleEvents(id, state) {
@@ -338,18 +350,39 @@
       consuming = false;
     }
 
+    function enqueue(command) {
+      queue.push(command);
+      consume();
+    }
+
     function connect() {
       const connection = new WebSocket(`ws://${window.location.host}/ws`);
       socket = connection;
       connection.onopen = () => { reconnectAttempts = 0; };
-      connection.onmessage = event => { queue.push(JSON.parse(event.data)); consume(); };
+      connection.onmessage = event => enqueue(JSON.parse(event.data));
       connection.onclose = () => {
         if (socket === connection) socket = null;
         reconnectAttempts += 1;
         if (reconnectAttempts <= 20) window.setTimeout(connect, 500);
       };
     }
-    connect();
+    if (parentTransport) {
+      window.addEventListener("message", event => {
+        if (event.source !== window.parent) return;
+        if (parentOrigin !== "*" && event.origin !== parentOrigin) return;
+        const message = event.data;
+        if (
+          !message || message.source !== "basthon-turtle" ||
+          message.type !== "command"
+        ) return;
+        enqueue(message.command);
+      });
+      window.parent.postMessage(
+        {source: "basthon-turtle", type: "ready"}, parentOrigin
+      );
+    } else {
+      connect();
+    }
   </script>
 </body>
 </html>
