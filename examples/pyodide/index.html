@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>basthon-turtle with Pyodide</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; font: 15px system-ui, sans-serif; }
+    body { display: grid; grid-template-columns: minmax(20rem, 36rem) 1fr; }
+    main { display: grid; grid-template-rows: auto 1fr auto auto; gap: .75rem; padding: 1rem; }
+    textarea { width: 100%; min-height: 20rem; resize: vertical; font: 14px ui-monospace, monospace; }
+    button { justify-self: start; padding: .5rem 1rem; }
+    pre { min-height: 3rem; margin: 0; overflow: auto; white-space: pre-wrap; }
+    iframe { width: 100%; height: 100%; border: 0; border-left: 1px solid #ccc; }
+    @media (max-width: 48rem) {
+      body { grid-template-columns: 1fr; grid-template-rows: minmax(24rem, 1fr) minmax(24rem, 1fr); }
+      iframe { border: 0; border-top: 1px solid #ccc; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <p id="status">Loading Pyodide…</p>
+    <textarea id="code" spellcheck="false">from turtle import *
+
+speed(3)
+for color in ("red", "orange", "gold", "green", "blue", "purple"):
+    pencolor(color)
+    forward(80)
+    left(60)</textarea>
+    <button id="run" type="button" disabled>Run</button>
+    <pre id="output" aria-live="polite"></pre>
+  </main>
+  <iframe
+    id="canvas"
+    src="../../basthon/turtle/standalone.html?transport=parent"
+    title="Python turtle graphics"
+  ></iframe>
+  <script type="module">
+    const marker = "basthon-turtle";
+    const canvas = document.getElementById("canvas");
+    const code = document.getElementById("code");
+    const output = document.getElementById("output");
+    const run = document.getElementById("run");
+    const status = document.getElementById("status");
+    const pendingCommands = [];
+    let canvasReady = false;
+
+    const parameters = new URLSearchParams(window.location.search);
+    const workerURL = new URL("./worker.mjs", window.location.href);
+    const configuredPyodide = parameters.get("pyodide");
+    if (configuredPyodide) {
+      workerURL.searchParams.set(
+        "pyodide", new URL(configuredPyodide, window.location.href).href
+      );
+    }
+    const worker = new Worker(workerURL, {type: "module"});
+    let packageSpec = parameters.get("package") || "basthon-turtle";
+    if (packageSpec.endsWith(".whl")) {
+      packageSpec = new URL(packageSpec, window.location.href).href;
+    }
+    worker.postMessage({type: "initialize", package: packageSpec});
+
+    function sendCommand(command) {
+      const message = {source: marker, type: "command", command};
+      if (!canvasReady) pendingCommands.push(message);
+      else canvas.contentWindow.postMessage(message, window.location.origin);
+    }
+
+    window.addEventListener("message", event => {
+      if (event.source !== canvas.contentWindow) return;
+      if (event.origin !== window.location.origin) return;
+      const message = event.data;
+      if (!message || message.source !== marker) return;
+      if (message.type === "ready") {
+        canvasReady = true;
+        while (pendingCommands.length) {
+          canvas.contentWindow.postMessage(
+            pendingCommands.shift(), window.location.origin
+          );
+        }
+      } else if (message.type === "event") {
+        worker.postMessage({type: "event", event: message.event});
+      }
+    });
+
+    worker.addEventListener("message", event => {
+      const message = event.data;
+      if (message.type === "command") {
+        sendCommand(JSON.parse(message.payload));
+      } else if (message.type === "ready") {
+        status.textContent = "Ready";
+        status.dataset.state = "ready";
+        run.disabled = false;
+        if (parameters.has("autorun")) run.click();
+      } else if (message.type === "finished") {
+        status.textContent = "Finished";
+        status.dataset.state = "finished";
+        run.disabled = false;
+      } else if (message.type === "stdout" || message.type === "stderr") {
+        output.textContent += `${message.text}\n`;
+      } else if (message.type === "error") {
+        status.textContent = "Error";
+        status.dataset.state = "error";
+        output.textContent += `${message.message}\n`;
+        run.disabled = false;
+      }
+    });
+
+    worker.addEventListener("error", event => {
+      status.textContent = "Worker error";
+      status.dataset.state = "error";
+      output.textContent += `${event.message}\n`;
+      run.disabled = false;
+    });
+
+    run.addEventListener("click", () => {
+      run.disabled = true;
+      status.textContent = "Running…";
+      status.dataset.state = "running";
+      output.textContent = "";
+      worker.postMessage({type: "run", code: code.value});
+    });
+  </script>
+</body>
+</html>

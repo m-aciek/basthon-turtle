@@ -65,3 +65,12 @@ forward(50)   # appends only this movement; earlier drawing is not replayed
 See [the standalone mode documentation](docs/standalone.md) for behavior,
 scope, and architecture. A runnable demonstration is available in
 [`examples/standalone_live.py`](examples/standalone_live.py).
+
+## Browser-only Pyodide
+
+The live renderer can also run entirely in a browser. A Web Worker hosts
+Pyodide and sends incremental turtle commands to the persistent SVG renderer
+on the main thread; no localhost Python server or WebSocket is involved. See
+[the Pyodide documentation](docs/pyodide.md) and
+[`examples/pyodide`](examples/pyodide) for the host contract and a complete
+example.
