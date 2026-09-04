@@ -86,7 +86,7 @@ Install the portable persistent Jupyter renderer with:
 
 .. code:: bash
 
-    pip install "basthon-turtle[jupyter]"
+    pip install "basthon-turtle[notebook]"
 
 Turtle commands are buffered during each cell and animated in one persistent
 inline SVG widget after the cell finishes:
@@ -107,16 +107,23 @@ widget when ``sidecar`` is otherwise available. The original ``done()`` and
 Marimo
 ======
 
+Install the native persistent Marimo renderer with:
+
+.. code:: bash
+
+    pip install "basthon-turtle[notebook]"
+
 .. code:: python
 
-    import marimo as mo
-
-    from turtle import forward, done, svg
+    from turtle import forward, left
 
     forward(100)
-    done()
-    forward(100)
-    mo.Html(svg())
+    left(90)
+    forward(50)
+
+The first visible operation mounts a persistent AnyWidget in the current cell.
+Later turtle calls update that canvas without requiring ``done()`` or
+``mo.Html(svg())``.
 
 
 Credits
@@ -157,7 +164,7 @@ setuptools.setup(
         "basthon.turtle": ["notebook.css", "notebook.mjs", "standalone.html"]
     },
     extras_require={
-        "jupyter": ["anywidget>=0.9"],
+        "notebook": ["anywidget>=0.9"],
         "sidecar": ["anywidget>=0.9", "sidecar>=0.8"],
         "standalone": ["websockets>=14"],
     },
