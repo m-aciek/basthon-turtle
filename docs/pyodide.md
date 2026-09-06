@@ -37,7 +37,7 @@ be either a wheel URL or another package requirement. For example, after
 running `python -m build`:
 
 ```text
-http://localhost:8000/examples/pyodide/?package=../../dist/basthon_turtle-0.2.0-py3-none-any.whl
+http://localhost:8000/examples/pyodide/?package=../../dist/basthon_turtle-0.3.0-py3-none-any.whl
 ```
 
 The page is only a small demonstration host: it supplies an editor, creates
@@ -48,7 +48,7 @@ By default the worker imports the versioned Pyodide release used by the
 example. A self-hosted build can be selected with another query parameter:
 
 ```text
-?package=../../dist/basthon_turtle-0.2.0-py3-none-any.whl&pyodide=/pyodide/pyodide.mjs
+?package=../../dist/basthon_turtle-0.3.0-py3-none-any.whl&pyodide=/pyodide/pyodide.mjs
 ```
 
 ## Host contract

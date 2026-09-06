@@ -157,7 +157,7 @@ Implementation
 
 setuptools.setup(
     name="basthon-turtle",
-    version="0.2.0",
+    version="0.3.0",
     author="Maciej Olko",
     author_email="maciej.olko@gmail.com",
     description="A browser-friendly implementation of Python's turtle module.",

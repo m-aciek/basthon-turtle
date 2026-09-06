@@ -1,10 +1,12 @@
 # Changelog
 
-* Unreleased:
-  * Added a browser-only Pyodide worker transport and example for persistent,
-    incremental live rendering without a localhost Python server or WebSocket.
+* 0.3.0:
   * Added a native persistent Marimo renderer through the shared ``notebook``
     extra, which depends only on AnyWidget.
+  * Added a browser-only Pyodide worker transport and example for persistent,
+    incremental live rendering without a localhost Python server or WebSocket.
+  * Added a headless CPython turtle compatibility report and a regression
+    baseline for public API coverage and `Vec2D`/`TNavigator` behavior.
 * 0.2.0:
   * Added an optional persistent Jupyter renderer that batches turtle commands
     per cell and animates them in one shared SVG widget.

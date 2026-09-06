@@ -1,0 +1,32 @@
+name: CPython turtle compatibility
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compatibility:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+      # Exercise the real installed .pth hook as well as the checkout shim.
+      - run: python -m pip install .
+      - name: Test report infrastructure (no display)
+        run: python -m unittest discover -s tests/compatibility -v
+      - name: Check baseline
+        run: python -m tools.compatibility_report --check-baseline
+      - name: Write detailed observations
+        if: always()
+        run: python -m tools.compatibility_report --json > compatibility-report.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: turtle-compatibility-cpython-3.14
+          path: compatibility-report.json
