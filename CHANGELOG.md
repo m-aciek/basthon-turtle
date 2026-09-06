@@ -1,6 +1,8 @@
 # Changelog
 
 * Unreleased:
+  * Added a browser-only Pyodide worker transport and example for persistent,
+    incremental live rendering without a localhost Python server or WebSocket.
   * Added a native persistent Marimo renderer through the shared ``notebook``
     extra, which depends only on AnyWidget.
 * 0.2.0:

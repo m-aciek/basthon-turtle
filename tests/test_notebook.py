@@ -3,7 +3,7 @@ import unittest
 from unittest import mock
 
 from basthon import turtle
-from basthon.turtle import _notebook, _standalone
+from basthon.turtle import _notebook, _pyodide, _standalone
 
 
 class FakeEvents:
@@ -268,10 +268,12 @@ class NotebookBackendSelectionTests(unittest.TestCase):
         session.started = True
         with (
             mock.patch.object(_notebook, "create_session", return_value=session),
+            mock.patch.object(_pyodide, "create_session") as pyodide,
             mock.patch.object(_standalone, "create_session") as standalone,
         ):
             turtle.Turtle()
 
+        pyodide.assert_not_called()
         standalone.assert_not_called()
         self.assertGreaterEqual(session.emit.call_count, 1)
 

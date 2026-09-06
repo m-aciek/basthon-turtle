@@ -125,6 +125,14 @@ The first visible operation mounts a persistent AnyWidget in the current cell.
 Later turtle calls update that canvas without requiring ``done()`` or
 ``mo.Html(svg())``.
 
+Browser-only Pyodide
+====================
+
+Plain Pyodide can host the live mode entirely in one browser tab. Run Python
+in a Web Worker and forward the semantic turtle protocol to the persistent SVG
+renderer with ``postMessage``. This keeps animation responsive without a
+localhost server or WebSocket; see ``docs/pyodide.md`` for a complete example.
+
 
 Credits
 -------

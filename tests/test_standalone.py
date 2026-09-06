@@ -643,7 +643,7 @@ class StandaloneSessionTests(unittest.TestCase):
         self.assertIn('drawing.appendChild(polygon)', client)
         self.assertIn("const queue = []", client)
         self.assertIn(
-            'socket.send(JSON.stringify({type: "event", event: "drag"', client
+            'sendEvent({type: "event", event: "drag"', client
         )
         self.assertIn('state.node.addEventListener("pointermove"', client)
         self.assertIn('node = element("rect"', client)
@@ -654,6 +654,9 @@ class StandaloneSessionTests(unittest.TestCase):
         self.assertIn(
             'screen.addEventListener("keyup", event => sendKeyEvent', client
         )
+        self.assertIn('message.type !== "command"', client)
+        self.assertIn('{source: "basthon-turtle", type: "ready"}', client)
+        self.assertIn('sendEvent({type: "event", event: "drag"', client)
         self.assertIn('ArrowUp: "Up"', client)
         self.assertIn('" ": "space"', client)
         self.assertIn('if (command.type === "clear")', client)
