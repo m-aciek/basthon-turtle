@@ -151,7 +151,7 @@ Credits
 
 setuptools.setup(
     name="basthon-turtle",
-    version="0.3.0",
+    version="0.3.1",
     author="Maciej Olko",
     author_email="maciej.olko@gmail.com",
     description="A Python turtle implementation with live SVG rendering across Jupyter, Marimo, Pyodide, and standalone CPython.",

@@ -1,5 +1,7 @@
 # Changelog
 
+* 0.3.1:
+  * Improve package descriptions.
 * 0.3.0:
   * Added a native persistent Marimo renderer through the shared ``notebook``
     extra, which depends only on AnyWidget.
