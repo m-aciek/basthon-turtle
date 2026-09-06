@@ -23,7 +23,7 @@ const transport = {
   set_event_handler(handler) {
     eventHandler = handler;
     while (eventHandler !== null && pendingEvents.length) {
-      eventHandler(pendingEvents.shift());
+      dispatchEvent(pendingEvents.shift());
     }
   }
 };
@@ -108,6 +108,14 @@ function reportError(error, options = {}) {
   });
 }
 
+function dispatchEvent(payload) {
+  try {
+    eventHandler(payload);
+  } catch (error) {
+    reportError(error, {summary: "Python event callback failed."});
+  }
+}
+
 self.addEventListener("message", event => {
   const message = event.data;
 
@@ -133,7 +141,7 @@ self.addEventListener("message", event => {
   if (message.type === "event") {
     const payload = JSON.stringify(message.event);
     if (eventHandler === null) pendingEvents.push(payload);
-    else eventHandler(payload);
+    else dispatchEvent(payload);
     return;
   }
 

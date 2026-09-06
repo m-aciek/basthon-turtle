@@ -1,5 +1,7 @@
 import ast
 import json
+import shutil
+import subprocess
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -131,6 +133,18 @@ class PyodideBackendSelectionTests(unittest.TestCase):
 
 
 class PyodideBrowserAssetsTests(unittest.TestCase):
+    @unittest.skipUnless(shutil.which("node"), "Node.js is required")
+    def test_browser_transport_regressions(self):
+        result = subprocess.run(
+            [
+                shutil.which("node"),
+                str(PROJECT_ROOT / "tests" / "pyodide_browser.cjs"),
+            ],
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
     def test_worker_registers_transport_before_runtime_install(self):
         worker = (
             PROJECT_ROOT / "examples" / "pyodide" / "worker.mjs"

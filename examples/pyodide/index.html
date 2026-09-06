@@ -34,7 +34,6 @@ for color in ("red", "orange", "gold", "green", "blue", "purple"):
   </main>
   <iframe
     id="canvas"
-    src="../../basthon/turtle/standalone.html?transport=parent"
     title="Python turtle graphics"
   ></iframe>
   <script type="module">
@@ -87,6 +86,8 @@ for color in ("red", "orange", "gold", "green", "blue", "purple"):
         worker.postMessage({type: "event", event: message.event});
       }
     });
+    // Install the listener before the renderer can send its readiness message.
+    canvas.src = "../../basthon/turtle/standalone.html?transport=parent";
 
     worker.addEventListener("message", event => {
       const message = event.data;
