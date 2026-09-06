@@ -28,16 +28,23 @@ class BuildPy(_build_py):
         return outputs
 
 long_description = """\
-A revised version of CPython's turtle module, browser-friendly.
+Basthon Turtle is a browser-friendly implementation of Python's
+``turtle`` module. It keeps the familiar turtle API while replacing the Tk
+canvas with SVG, so turtle programs can run in notebooks and browser-based
+Python environments.
 
-The optional standalone mode supports interactive CPython use. The abbreviated
-docstrings remain less suitable for ``help()`` than CPython's implementation.
+The package supports four display environments:
 
-All public methods/functions of the CPython version should exist, if only
-to print out a warning that they are not implemented. The intent is to make
-it easier to "port" any existing turtle program from CPython to the browser.
+* CPython with an optional standalone browser window;
+* Jupyter with a persistent inline SVG widget or optional JupyterLab sidecar;
+* Marimo with a persistent AnyWidget canvas; and
+* Pyodide, where a Web Worker sends incremental drawing updates to an SVG
+  page without a Python server or WebSocket.
 
-Initially the code was part of Brython, then ported to Basthon, then published as a standalone package.
+The rendering backends share turtle state and drawing operations, while each
+environment supplies its own transport and display. The traditional
+``done()`` workflow remains available, and ``svg()`` returns the current SVG
+scene.
 
 Installation
 ------------
@@ -47,7 +54,7 @@ Installation
     pip install basthon-turtle
 
 For a live, persistent browser window in a regular CPython session, install
-the proof-of-concept standalone extra:
+the standalone extra:
 
 .. code:: bash
 
@@ -63,7 +70,8 @@ or
 Usage
 -----
 
-Note: if running multiple times you need to restart the state of screen with ``turtle.restart()`` function.
+When reusing a Python process, call ``turtle.restart()`` to reset the screen
+and turtle state.
 
 Standalone CPython
 ==================
@@ -73,7 +81,7 @@ alive between commands and receives incremental drawing updates:
 
 .. code:: python
 
-    from turtle import forward, left
+    from turtle import *
 
     forward(100)
     left(90)
@@ -101,8 +109,7 @@ inline SVG widget after the cell finishes:
 
 For a JupyterLab-specific panel, install ``basthon-turtle[sidecar]`` instead.
 Call ``jupyter_sidecar(False)`` before drawing to force the portable inline
-widget when ``sidecar`` is otherwise available. The original ``done()`` and
-``svg()`` workflow remains available.
+widget when ``sidecar`` is otherwise available.
 
 Marimo
 ======
@@ -122,16 +129,17 @@ Install the native persistent Marimo renderer with:
     forward(50)
 
 The first visible operation mounts a persistent AnyWidget in the current cell.
-Later turtle calls update that canvas without requiring ``done()`` or
-``mo.Html(svg())``.
+Later turtle calls update the same canvas automatically; no explicit done()
+call is required.
 
 Browser-only Pyodide
 ====================
 
-Plain Pyodide can host the live mode entirely in one browser tab. Run Python
-in a Web Worker and forward the semantic turtle protocol to the persistent SVG
-renderer with ``postMessage``. This keeps animation responsive without a
-localhost server or WebSocket; see ``docs/pyodide.md`` for a complete example.
+Plain Pyodide can host the live mode entirely in one browser tab. The example
+runs Python in a Web Worker and forwards incremental turtle operations to a
+persistent SVG renderer with ``postMessage``. This keeps animation responsive
+without a localhost server or WebSocket; see ``docs/pyodide.md`` for a
+complete example.
 
 
 Credits
@@ -139,20 +147,6 @@ Credits
 - bearney74
 - André Roberge
 - Romain Casati
-
-Implementation
---------------
-
-.. important::
-    We use SVG for drawing turtles. If we have a turtle at an angle
-    of 350 degrees and we rotate it by an additional 20 degrees, we will have
-    a turtle at an angle of 370 degrees.  For turtles drawn periodically on
-    a screen (like typical animations, including the CPython turtle module),
-    drawing a turtle with a rotation of 370 degrees is the same as a rotation of
-    10 degrees.  However, using SVG, if we "slowly" animate an object,
-    rotating it from 350 to 370 degrees, the result will not be the same
-    as rotating it from 350 to 10 degrees. For this reason, we did not use the
-    Vec2D class from the CPython module and handle the rotations quite differently.
 """
 
 setuptools.setup(
@@ -160,8 +154,9 @@ setuptools.setup(
     version="0.3.0",
     author="Maciej Olko",
     author_email="maciej.olko@gmail.com",
-    description="A browser-friendly implementation of Python's turtle module.",
+    description="A Python turtle implementation with live SVG rendering across Jupyter, Marimo, Pyodide, and standalone CPython.",
     long_description=long_description,
+    long_description_content_type="text/x-rst",
     url="https://github.com/m-aciek/basthon-turtle",
     project_urls={
         "Changelog": "https://github.com/m-aciek/basthon-turtle/blob/main/CHANGELOG.md",
