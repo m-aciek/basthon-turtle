@@ -74,3 +74,18 @@ on the main thread; no localhost Python server or WebSocket is involved. See
 [the Pyodide documentation](docs/pyodide.md) and
 [`examples/pyodide`](examples/pyodide) for the host contract and a complete
 example.
+
+## Development
+
+Run the headless CPython `turtle` compatibility baseline from this checkout:
+
+```console
+python -m tools.compatibility_report
+python -m tools.compatibility_report --json
+```
+
+Use CPython 3.14 with Tkinter installed; no display is needed. This measures
+public API coverage and backend-independent `Vec2D`/`TNavigator` behavior.
+Tk/rendering compatibility is not measured, Basthon extensions do not reduce
+compatibility, and known failures are expected in the initial baseline.
+See [the developer guide](docs/compatibility.md) for tests and regression checks.
