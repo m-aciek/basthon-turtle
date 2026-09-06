@@ -139,11 +139,27 @@ class PyodideBrowserAssetsTests(unittest.TestCase):
         register = worker.index(
             'registerJsModule("basthon_turtle_transport", transport)'
         )
-        install = worker.index("await micropip.install(packageSpec)")
+        checkout = worker.index("await loadCheckoutSources(pyodide)")
+        install = worker.index("await installPackage(pyodide, packageSpec)")
+        self.assertLess(register, checkout)
         self.assertLess(register, install)
+        self.assertIn(
+            'const SOURCE_ROOT = "/tmp/basthon-turtle-example"', worker
+        )
+        for source in (PROJECT_ROOT / "basthon" / "turtle").glob("*.py"):
+            self.assertIn(f'"{source.name}"', worker)
+        self.assertIn('summary: "Could not initialize', worker)
         page = (
             PROJECT_ROOT / "examples" / "pyodide" / "index.html"
         ).read_text()
+        self.assertIn(
+            'const initialization = {type: "initialize"};', page
+        )
+        self.assertIn('message.type === "status"', page)
+        self.assertIn('"Initialization failed"', page)
+        self.assertIn(
+            'run.disabled = message.phase === "initialize";', page
+        )
         self.assertIn("new URL", page)
         self.assertIn('self.postMessage({type: "command", payload})', worker)
         self.assertIn("pyodide.runPythonAsync(message.code)", worker)

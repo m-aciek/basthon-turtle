@@ -56,11 +56,14 @@ for color in ("red", "orange", "gold", "green", "blue", "purple"):
       );
     }
     const worker = new Worker(workerURL, {type: "module"});
-    let packageSpec = parameters.get("package") || "basthon-turtle";
-    if (packageSpec.endsWith(".whl")) {
-      packageSpec = new URL(packageSpec, window.location.href).href;
+    const initialization = {type: "initialize"};
+    const packageSpec = parameters.get("package");
+    if (packageSpec !== null) {
+      initialization.package = packageSpec.endsWith(".whl")
+        ? new URL(packageSpec, window.location.href).href
+        : packageSpec;
     }
-    worker.postMessage({type: "initialize", package: packageSpec});
+    worker.postMessage(initialization);
 
     function sendCommand(command) {
       const message = {source: marker, type: "command", command};
@@ -89,6 +92,8 @@ for color in ("red", "orange", "gold", "green", "blue", "purple"):
       const message = event.data;
       if (message.type === "command") {
         sendCommand(JSON.parse(message.payload));
+      } else if (message.type === "status") {
+        status.textContent = message.message;
       } else if (message.type === "ready") {
         status.textContent = "Ready";
         status.dataset.state = "ready";
@@ -101,18 +106,23 @@ for color in ("red", "orange", "gold", "green", "blue", "purple"):
       } else if (message.type === "stdout" || message.type === "stderr") {
         output.textContent += `${message.text}\n`;
       } else if (message.type === "error") {
-        status.textContent = "Error";
+        status.textContent = message.phase === "initialize"
+          ? "Initialization failed"
+          : "Execution failed";
         status.dataset.state = "error";
-        output.textContent += `${message.message}\n`;
-        run.disabled = false;
+        output.textContent += `${message.summary}\n`;
+        if (message.hint) output.textContent += `${message.hint}\n`;
+        output.textContent += `\nDetails:\n${message.detail}\n`;
+        run.disabled = message.phase === "initialize";
       }
     });
 
     worker.addEventListener("error", event => {
       status.textContent = "Worker error";
       status.dataset.state = "error";
-      output.textContent += `${event.message}\n`;
-      run.disabled = false;
+      output.textContent +=
+        `Could not load the Pyodide worker.\n\nDetails:\n${event.message}\n`;
+      run.disabled = true;
     });
 
     run.addEventListener("click", () => {

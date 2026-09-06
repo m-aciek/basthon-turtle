@@ -18,22 +18,28 @@ pointer or key event
 
 ## Try the source checkout
 
-Build a wheel, then serve the repository over HTTP:
+Serve the repository over HTTP:
 
 ```console
-python -m build
 python -m http.server 8000
 ```
 
-Open the example and identify the generated wheel with the `package` query
-parameter, for example:
+Then open:
+
+```text
+http://localhost:8000/examples/pyodide/
+```
+
+By default, the example loads the package's Python sources directly from the
+adjacent `basthon/turtle` directory, so it does not depend on a published
+package. The `package` query parameter overrides those checkout sources and may
+be either a wheel URL or another package requirement. For example, after
+running `python -m build`:
 
 ```text
 http://localhost:8000/examples/pyodide/?package=../../dist/basthon_turtle-0.2.0-py3-none-any.whl
 ```
 
-The parameter may instead be the `basthon-turtle` package requirement after a
-release containing this backend is available.
 The page is only a small demonstration host: it supplies an editor, creates
 the worker, and embeds the existing live SVG page in its transport-neutral
 `parent` mode.
