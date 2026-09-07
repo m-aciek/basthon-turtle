@@ -208,6 +208,33 @@ class LiveRenderingTests(unittest.TestCase):
             self.assertAlmostEqual(pen.ycor(), 10)
             self.assertGreater(session.commands[-1]["to"][1], 0)
 
+    def test_world_angle_units_preserve_home_and_svg_orientation(self):
+        session = FakeSession()
+        with mock.patch.object(_standalone, "create_session", return_value=session):
+            screen = turtle.Screen()
+            screen.setworldcoordinates(-100, -100, 100, 100)
+            pen = turtle.Turtle()
+            for units, args in (
+                ("degrees", ()), ("degrees", (400,)), ("radians", ())
+            ):
+                with self.subTest(units=units, args=args):
+                    getattr(pen, units)(*args)
+                    self.assertEqual(pen.heading(), 0)
+                    pen.home()
+                    pen.forward(10)
+                    self.assertAlmostEqual(pen.xcor(), 10)
+                    self.assertAlmostEqual(pen.ycor(), 0)
+                    rotation = next(
+                        c for c in reversed(session.commands)
+                        if c["type"] == "rotate"
+                    )
+                    self.assertAlmostEqual(rotation["to"], -90)
+                    root = ET.fromstring(str(pen.svg))
+                    animation = root.findall("animateTransform")[-1]
+                    self.assertAlmostEqual(
+                        float(animation.attrib["to"].split(",")[0]), -90
+                    )
+
     def test_instant_rotation_and_clone_keep_vector_state(self):
         session = FakeSession()
         with mock.patch.object(_standalone, "create_session", return_value=session):

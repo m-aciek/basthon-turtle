@@ -71,6 +71,13 @@ pickling, and navigation across modes and angle units. The standalone tests
 check both serialized SVG rotation endpoints and live commands. These checks
 do not establish complete `Turtle` or browser compatibility.
 
+World mode uses the standard heading convention when changing angle units.
+This intentionally differs from CPython 3.14.0, which introduces a quarter-turn
+heading offset in world mode after `degrees()` or `radians()`. Tests assert
+the expected headings and movement directly and use CPython's standard mode
+as the reference for world-mode unit changes. Invalid navigator modes warn
+and fall back to the configured mode.
+
 `tests/compatibility/baseline.json` stores individual check IDs and statuses,
 scoped to a CPython minor version. `--check-baseline` exits with status 1 if a
 previously compatible check fails, becomes inapplicable, or disappears. Known

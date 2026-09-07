@@ -988,8 +988,9 @@ class TNavigator:
     def __init__(self, mode=DEFAULT_MODE):
         self._angleOffset = self.DEFAULT_ANGLEOFFSET
         self._angleOrient = self.DEFAULT_ANGLEORIENT
-        self._mode = mode
+        self._mode = self.DEFAULT_MODE
         self.degrees()
+        self._setmode(_CFG["mode"])
         self._setmode(mode)
         TNavigator.reset(self)
 
@@ -1020,7 +1021,7 @@ class TNavigator:
         """Helper function for degrees() and radians()"""
         self._fullcircle = fullcircle
         self._degreesPerAU = 360 / fullcircle
-        if self._mode == "standard":
+        if self._mode in ["standard", "world"]:
             self._angleOffset = 0
         else:
             self._angleOffset = fullcircle / 4.0
