@@ -12,21 +12,36 @@
 # to print out a warning that they are not implemented. The intent is to make
 # it easier to "port" any existing turtle program from CPython to the browser.
 #
-# IMPORTANT: We use SVG for drawing turtles. If we have a turtle at an angle
-# of 350 degrees and we rotate it by an additional 20 degrees, we will have
-# a turtle at an angle of 370 degrees.  For turtles drawn periodically on
-# a screen (like typical animations, including the CPython turtle module),
-# drawing a turtle with a rotation of 370 degrees is the same as a rotation of
-# 10 degrees.  However, using SVG, if we "slowly" animate an object,
-# rotating it from 350 to 370 degrees, the result will not be the same
-# as rotating it from 350 to 10 degrees. For this reason, we did not use the
-# Vec2D class from the CPython module and handle the rotations quite differently.
+# Navigation uses CPython-compatible vectors. SVG animation separately keeps
+# an unwrapped angle: a turn from 350 to 370 degrees must not become a turn
+# from 350 to 10 degrees. Turtle._old_heading retains this animation state;
+# rotations advance it by the requested signed angle, including full turns.
+#
+# Vec2D and navigation methods below are adapted from CPython's turtle.py:
+#
+# Copyright (C) 2006 - 2010  Gregor Lingl
+# email: glingl@aon.at
+#
+# This software is provided 'as-is', without any express or implied
+# warranty.  In no event will the authors be held liable for any damages
+# arising from the use of this software.
+#
+# Permission is granted to anyone to use this software for any purpose,
+# including commercial applications, and to alter it and redistribute it
+# freely, subject to the following restrictions:
+#
+# 1. The origin of this software must not be misrepresented; you must not
+#    claim that you wrote the original software. If you use this software
+#    in a product, an acknowledgment in the product documentation would be
+#    appreciated but is not required.
+# 2. Altered source versions must be plainly marked as such, and must not be
+#    misrepresented as being the original software.
+# 3. This notice may not be removed or altered from any source distribution.
 
 
 import math
 import sys
 
-from math import cos, sin
 from uuid import uuid4
 
 from . import _notebook
@@ -131,14 +146,46 @@ def set_defaults(**params):
     Screen().reset()
 
 
-class FormattedTuple(tuple):
-    """used to give a nicer representation of the position"""
+class Vec2D(tuple):
+    """An immutable two-dimensional vector, compatible with CPython turtle."""
 
     def __new__(cls, x, y):
         return tuple.__new__(cls, (x, y))
 
+    def __add__(self, other):
+        return Vec2D(self[0] + other[0], self[1] + other[1])
+
+    def __mul__(self, other):
+        if isinstance(other, Vec2D):
+            return self[0] * other[0] + self[1] * other[1]
+        return Vec2D(self[0] * other, self[1] * other)
+
+    def __rmul__(self, other):
+        if isinstance(other, int) or isinstance(other, float):
+            return Vec2D(self[0] * other, self[1] * other)
+        return NotImplemented
+
+    def __sub__(self, other):
+        return Vec2D(self[0] - other[0], self[1] - other[1])
+
+    def __neg__(self):
+        return Vec2D(-self[0], -self[1])
+
+    def __abs__(self):
+        return math.hypot(*self)
+
+    def rotate(self, angle):
+        """Return a vector rotated counterclockwise by angle degrees."""
+        perp = Vec2D(-self[1], self[0])
+        angle = math.radians(angle)
+        c, s = math.cos(angle), math.sin(angle)
+        return Vec2D(self[0] * c + perp[0] * s, self[1] * c + perp[1] * s)
+
+    def __getnewargs__(self):
+        return (self[0], self[1])
+
     def __repr__(self):
-        return "(%.2f, %.2f)" % self
+        return "(%.2f,%.2f)" % self
 
 
 def create_circle(r):
@@ -423,11 +470,9 @@ class Screen(metaclass=Singleton):
             print("Unknown turtle '%s'; the default turtle will be used")
             fn, arg = self.shapes[_CFG["shape"]]
         shape = fn(arg)
-        if self._mode == "standard" or self._mode == "world":
-            rotation = -90
-        else:
-            rotation = 0
-        return shape, rotation
+        # Built-in geometry faces down in SVG coordinates. Navigation already
+        # accounts for the initial orientation of each turtle mode.
+        return shape, -90
 
     def _live_shape_command(self, turtle_id, name):
         """Serialize a built-in turtle shape for the standalone renderer."""
@@ -931,10 +976,11 @@ class TNavigator:
     Implements methods for turtle movement.
     """
 
-    # START_ORIENTATION = {
-    #     "standard": Vec2D(1.0, 0.0),
-    #     "world": Vec2D(1.0, 0.0),
-    #     "logo": Vec2D(0.0, 1.0)}
+    START_ORIENTATION = {
+        "standard": Vec2D(1.0, 0.0),
+        "world": Vec2D(1.0, 0.0),
+        "logo": Vec2D(0.0, 1.0),
+    }
     DEFAULT_MODE = "standard"
     DEFAULT_ANGLEOFFSET = 0
     DEFAULT_ANGLEORIENT = 1
@@ -943,9 +989,7 @@ class TNavigator:
         self._angleOffset = self.DEFAULT_ANGLEOFFSET
         self._angleOrient = self.DEFAULT_ANGLEORIENT
         self._mode = mode
-        self.degree_to_radians = math.pi / 180
         self.degrees()
-        self._mode = _CFG["mode"]
         self._setmode(mode)
         TNavigator.reset(self)
 
@@ -954,11 +998,8 @@ class TNavigator:
 
         The derived class, which will call it directly and add its own
         """
-        self._position = (0.0, 0.0)
-        self._x = 0
-        self._y = 0
-        self._angle = 0
-        self._old_heading = 0
+        self._position = Vec2D(0.0, 0.0)
+        self._orient = self.START_ORIENTATION[self._mode]
 
     def _setmode(self, mode=None):
         """Set turtle-mode to 'standard', 'world' or 'logo'."""
@@ -972,13 +1013,17 @@ class TNavigator:
             self._angleOffset = 0
             self._angleOrient = 1
         else:  # mode == "logo":
-            self._angleOffset = -self._fullcircle / 4.0
-            self._angleOrient = 1
+            self._angleOffset = self._fullcircle / 4.0
+            self._angleOrient = -1
 
     def _setDegreesPerAU(self, fullcircle):
         """Helper function for degrees() and radians()"""
         self._fullcircle = fullcircle
         self._degreesPerAU = 360 / fullcircle
+        if self._mode == "standard":
+            self._angleOffset = 0
+        else:
+            self._angleOffset = fullcircle / 4.0
 
     def degrees(self, fullcircle=360.0):
         """Set angle measurement units to degrees, or possibly other system."""
@@ -990,59 +1035,53 @@ class TNavigator:
 
     def _rotate(self, angle):
         """Turn turtle counterclockwise by specified angle if angle > 0."""
-        pass
+        self._orient = self._orient.rotate(angle * self._degreesPerAU)
 
-    def _goto(self, x, y):
-        pass  # implemented by derived class
+    def _goto(self, end):
+        self._position = end
+
+    def _go(self, distance):
+        self._distance = abs(distance)
+        self._goto(self._position + self._orient * distance)
 
     def forward(self, distance):
         """Move the turtle forward by the specified distance."""
-        x1 = distance * cos(self._angle * self.degree_to_radians)
-        y1 = distance * sin(self._angle * self.degree_to_radians)
-        self._distance = distance
-        self._goto(self._x + x1, self._y + y1)
+        self._go(distance)
 
     fd = forward
 
     def back(self, distance):
         """Move the turtle backward by distance."""
-        x1 = -distance * cos(self._angle * self.degree_to_radians)
-        y1 = -distance * sin(self._angle * self.degree_to_radians)
-        self._distance = distance
-        self._goto(self._x + x1, self._y + y1)
+        self._go(-distance)
 
     backward = back
     bk = back
 
     def right(self, angle):
         """Turn turtle right by angle units."""
-        angle *= self._degreesPerAU
-        self._angle += self.screen.y_points_down * angle
-        self._rotate_image(-angle)
+        self._rotate(-angle)
 
     rt = right
 
     def left(self, angle):
         """Turn turtle left by angle units."""
-        angle *= self._degreesPerAU
-        self._angle += -self.screen.y_points_down * angle
-        self._rotate_image(angle)
+        self._rotate(angle)
 
     lt = left
 
     def pos(self):
-        """Return the turtle's current location (x,y), as a formatted tuple"""
-        return FormattedTuple(self._x, self._y)
+        """Return the turtle's current location as a Vec2D vector."""
+        return self._position
 
     position = pos
 
     def xcor(self):
         """Return the turtle's x coordinate."""
-        return self._x
+        return self._position[0]
 
     def ycor(self):
         """Return the turtle's y coordinate"""
-        return self._y
+        return self._position[1]
 
     def goto(self, x, y=None):
         """Move turtle to an absolute position."""
@@ -1056,8 +1095,8 @@ class TNavigator:
         #
         # forward, backward, etc., call _goto directly with the distance
         # given by the user
-        self._distance = abs(self._x - x) + abs(self._y - y)
-        self._goto(x, y)
+        self._distance = abs(self._position[0] - x) + abs(self._position[1] - y)
+        self._goto(Vec2D(x, y))
 
     setpos = goto
     setposition = goto
@@ -1071,40 +1110,54 @@ class TNavigator:
 
     def setx(self, x):
         """Set the turtle's first coordinate to x"""
-        self._distance = abs(x - self._x)
-        self._goto(x, self._y)
+        self._distance = abs(x - self._position[0])
+        self._goto(Vec2D(x, self._position[1]))
 
     def sety(self, y):
         """Set the turtle's second coordinate to y"""
-        self._distance = abs(y - self._y)
-        self._goto(self._x, y)
+        self._distance = abs(y - self._position[1])
+        self._goto(Vec2D(self._position[0], y))
 
     def distance(self, x, y=None):
         """Return the distance from the turtle to (x,y) in turtle step units."""
-        if y is None:
-            assert isinstance(x, tuple)
-            x, y = x
-        return math.sqrt((self._x - x) ** 2 + (self._y - y) ** 2)
+        if y is not None:
+            pos = Vec2D(x, y)
+        if isinstance(x, Vec2D):
+            pos = x
+        elif isinstance(x, tuple):
+            pos = Vec2D(*x)
+        elif isinstance(x, TNavigator):
+            pos = x._position
+        return abs(pos - self._position)
 
     def towards(self, x, y=None):
         """Return the angle of the line from the turtle's position to (x, y)."""
-        if y is None:
-            assert isinstance(x, tuple)
-            x, y = x
-        x, y = x - self._x, y - self._y
+        if y is not None:
+            pos = Vec2D(x, y)
+        if isinstance(x, Vec2D):
+            pos = x
+        elif isinstance(x, tuple):
+            pos = Vec2D(*x)
+        elif isinstance(x, TNavigator):
+            pos = x._position
+        x, y = pos - self._position
         result = round(math.atan2(y, x) * 180.0 / math.pi, 10) % 360.0
         result /= self._degreesPerAU
         return (self._angleOffset + self._angleOrient * result) % self._fullcircle
 
     def heading(self):
         """Return the turtle's current heading."""
-        angle = self._angle / self._degreesPerAU
-        return (self._angleOffset + self._angleOrient * angle) % self._fullcircle
+        x, y = self._orient
+        result = round(math.degrees(math.atan2(y, x)), 10) % 360.0
+        result /= self._degreesPerAU
+        return (self._angleOffset + self._angleOrient * result) % self._fullcircle
 
     def setheading(self, to_angle):
         """Set the orientation of the turtle to to_angle."""
-        rot = min((to_angle + i * 360 - self._angle for i in range(-2, 3)), key=abs)
-        self._rotate(rot)
+        angle = (to_angle - self.heading()) * self._angleOrient
+        full = self._fullcircle
+        angle = (angle + full / 2.0) % full - full / 2.0
+        self._rotate(angle)
 
     seth = setheading
 
@@ -1446,7 +1499,7 @@ class TPen:
                 }
             )
         if "shown" in p:
-            x, y = self.screen._convert_coordinates(self._x, self._y)
+            x, y = self.screen._convert_coordinates(*self._position)
             self.screen._emit_live(
                 {
                     "type": "visibility",
@@ -1483,26 +1536,30 @@ class Turtle(TPen, TNavigator):
         self.svg, rotation = self.screen.create_svg_turtle(self, name=shape)
         self.svg.setAttribute("opacity", 0)
         self._shown = False
+        self.rotation_correction = rotation
+        self._reset_image_heading()
         self.screen._emit_live(self.screen._live_shape_command(self._live_id, shape))
         if visible:
             self.showturtle()  # will ensure that turtle become visible at appropriate time
         self.screen._turtles.append(self)
-        self.rotation_correction = rotation
-        # apply correction to image orientation
-        self._old_heading = self.heading() + self.rotation_correction
         speed = self.speed()
         self.speed(0)
-        self.left(
-            -self._angleOffset
-        )  # this will update the display to include the correction
+        self._rotate_image(0)
         self.speed(speed)
+
+    def _reset_image_heading(self):
+        x, y = self._orient
+        self._old_heading = (
+            math.degrees(math.atan2(self.screen.y_points_down * y, x))
+            + self.rotation_correction
+        )
 
     def reset(self):
         """Delete the turtle's drawings and restore its default values."""
         # TODO: review this and most likely revise docstring.
         TNavigator.reset(self)
         TPen._reset(self)
-        self._old_heading = self.heading() + self.rotation_correction
+        self._reset_image_heading()
         self.home()
         self.color(_CFG["pencolor"], _CFG["fillcolor"])
 
@@ -1623,15 +1680,16 @@ class Turtle(TPen, TNavigator):
     def get_shapepoly(self):
         sys.stderr.write("Warning: Turtle.get_shapepoly() is not implemented.\n")
 
-    def _goto(self, x, y):
+    def _goto(self, end):
         """Move the pen to the point end, thereby drawing a line
         if pen is down. All other methods for turtle movement depend
         on this one.
         """
 
+        x, y = end
         begin, duration, _from, _to, line = self.screen._drawline(
             self,
-            ((self._x, self._y), (x, y)),
+            (self._position, (x, y)),
             (self._pencolor, self._fillcolor),
             self._pensize,
             self._speed,
@@ -1677,18 +1735,15 @@ class Turtle(TPen, TNavigator):
 
         if self._fillpath is not None:
             self._fillpath.append((x, y))
-        self._position = (x, y)
-        self._x = x
-        self._y = y
+        TNavigator._goto(self, end)
 
     def _rotate(self, angle):
-        """Turns pen clockwise by angle."""
-        angle *= self._degreesPerAU
-        self._angle += -self.screen.y_points_down * angle
-        self._rotate_image(angle)
+        """Update navigation and animate the complete requested turn."""
+        TNavigator._rotate(self, angle)
+        self._rotate_image(angle * self._degreesPerAU)
 
     def _rotate_image(self, angle):
-        new_heading = self._old_heading - angle
+        new_heading = self._old_heading + self.screen.y_points_down * angle
 
         if self.isvisible():
             previous_end, new_frame_id = self.screen._new_frame()
@@ -1722,7 +1777,7 @@ class Turtle(TPen, TNavigator):
                     ),
                 )
             else:
-                x, y = self.screen._convert_coordinates(self._x, self._y)
+                x, y = self.screen._convert_coordinates(*self._position)
                 self.svg.setAttribute(
                     "transform", f"translate({x}, {y}) " f"rotate({new_heading}, 0, 0)"
                 )
@@ -1743,7 +1798,7 @@ class Turtle(TPen, TNavigator):
 
     def begin_fill(self):
         """Called just before drawing a shape to be filled."""
-        self._fillpath = [(self._x, self._y)]
+        self._fillpath = [self._position]
 
     def end_fill(self):
         """Fill the shape drawn after the call begin_fill()."""
@@ -1765,7 +1820,7 @@ class Turtle(TPen, TNavigator):
             size = max(self._pensize + 4, 2 * self._pensize)
         if color is None:
             color = self._pencolor
-        item = self.screen._dot((self._x, self._y), size, color=color)
+        item = self.screen._dot(self._position, size, color=color)
         self._drawing_items.append((self.screen.canvas, item))
 
     def _write(self, txt, align, font, color=None):
@@ -1773,7 +1828,7 @@ class Turtle(TPen, TNavigator):
         if color is None:
             color = self._pencolor
         item = self.screen._write(
-            self, (self._x, self._y), txt, align, font, color
+            self, self._position, txt, align, font, color
         )
         self._drawing_items.append((self.screen.writing_canvas, item))
 
@@ -1790,7 +1845,7 @@ class Turtle(TPen, TNavigator):
 
     def begin_poly(self):
         """Start recording the vertices of a polygon."""
-        self._poly = [(self._x, self._y)]
+        self._poly = [self._position]
         self._creatingPoly = True
 
     def end_poly(self):
@@ -1836,7 +1891,7 @@ class Turtle(TPen, TNavigator):
         # We use timed animations to get it with the proper location, orientation
         # and appear at the desired time.
         previous_end, new_frame_id = self.screen._new_frame()
-        x, y = self.screen._convert_coordinates(self._x, self._y)
+        x, y = self.screen._convert_coordinates(*self._position)
         if self.screen._animate:
             appendTo(
                 _turtle,
@@ -1905,6 +1960,8 @@ class Turtle(TPen, TNavigator):
             if isinstance(getattr(self, attr), (int, str, float)):
                 new_dict[attr] = getattr(self, attr)
         n.__dict__.update(**new_dict)
+        n._position = self._position
+        n._orient = self._orient
         # ensure that visible characteristics are consistent with settings
         if not n._shown:
             n._shown = True  # otherwise, hideturtle() would have not effect
@@ -2130,6 +2187,7 @@ __all__ = (
         "replay_scene",
         "Turtle",
         "Screen",
+        "Vec2D",
     ]
 )
 
