@@ -2,6 +2,7 @@ import json
 import shutil
 import subprocess
 import unittest
+import warnings
 from pathlib import Path
 from unittest import mock
 
@@ -129,6 +130,25 @@ class PyodideBackendSelectionTests(unittest.TestCase):
 
         standalone.assert_not_called()
         self.assertGreaterEqual(session.emit.call_count, 1)
+
+    def test_browser_platform_without_transport_does_not_suggest_standalone(self):
+        for platform in ("emscripten", "wasi"):
+            with self.subTest(platform=platform):
+                self._reset_turtle()
+                with (
+                    mock.patch.object(_notebook, "create_session", return_value=None),
+                    mock.patch.object(_notebook, "is_notebook", return_value=False),
+                    mock.patch.object(_pyodide.sys, "platform", platform),
+                    mock.patch.object(_pyodide, "_get_transport", return_value=None),
+                    mock.patch.object(_standalone, "create_session") as standalone,
+                    warnings.catch_warnings(record=True) as caught,
+                ):
+                    warnings.simplefilter("always")
+                    pen = turtle.Turtle()
+                    pen.forward(10)
+
+                self.assertEqual(caught, [])
+                standalone.assert_not_called()
 
 
 class PyodideBrowserAssetsTests(unittest.TestCase):

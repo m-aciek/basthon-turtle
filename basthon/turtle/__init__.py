@@ -41,6 +41,7 @@
 
 import math
 import sys
+import warnings
 
 from uuid import uuid4
 
@@ -247,6 +248,7 @@ class Screen(metaclass=Singleton):
     def __init__(self):
         self._standalone_session = None
         self._live_initialized = False
+        self._missing_extra_warned = set()
         self._live_event_handlers = {}
         self.shapes = {
             "arrow": (create_polygon, ((-10, 0), (10, 0), (0, 10))),
@@ -339,9 +341,19 @@ class Screen(metaclass=Singleton):
         if self._standalone_session is None:
             self._standalone_session = _notebook.create_session()
             if self._standalone_session is None:
+                if _notebook.is_notebook():
+                    self._warn_missing_extra("notebook", "Live notebook rendering")
+                    return
                 self._standalone_session = _pyodide.create_session()
-            if self._standalone_session is None:
+            if (
+                self._standalone_session is None
+                and sys.platform not in {"emscripten", "wasi"}
+            ):
                 self._standalone_session = _standalone.create_session()
+                if self._standalone_session is None:
+                    self._warn_missing_extra(
+                        "standalone", "The standalone browser window"
+                    )
         session = self._standalone_session
         if session is None:
             return
@@ -352,6 +364,17 @@ class Screen(metaclass=Singleton):
             session.emit(self._live_init_command())
             self._live_initialized = True
         session.emit(command)
+
+    def _warn_missing_extra(self, extra, feature):
+        if extra in self._missing_extra_warned:
+            return
+        self._missing_extra_warned.add(extra)
+        warnings.warn(
+            f"{feature} requires optional dependencies. "
+            f"Install basthon-turtle[{extra}] in this environment to enable it.",
+            UserWarning,
+            stacklevel=2,
+        )
 
     def _register_live_event(self, turtle_id, event, fun, add=None, button=1):
         key = (turtle_id, event)

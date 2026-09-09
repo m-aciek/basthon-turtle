@@ -4,12 +4,13 @@ import json
 import math
 import tomllib
 import unittest
+import warnings
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from unittest import mock
 
 from basthon import turtle
-from basthon.turtle import _standalone
+from basthon.turtle import _notebook, _pyodide, _standalone
 
 
 PROJECT_ROOT = Path(__file__).parents[1]
@@ -53,6 +54,52 @@ class FakeSession:
 class LiveRenderingTests(unittest.TestCase):
     def setUp(self):
         self._reset_turtle()
+
+    def test_missing_standalone_dependency_warns_once_and_preserves_svg(self):
+        with (
+            mock.patch.object(_notebook, "create_session", return_value=None),
+            mock.patch.object(_notebook, "is_notebook", return_value=False),
+            mock.patch.object(_pyodide, "create_session", return_value=None),
+            mock.patch.object(
+                _standalone.importlib.util, "find_spec", return_value=None
+            ),
+            warnings.catch_warnings(record=True) as caught,
+        ):
+            warnings.simplefilter("always")
+            screen = turtle.Screen()
+            self.assertEqual(caught, [])
+            screen.animation("off")
+            pen = turtle.Turtle()
+            pen.forward(100)
+            pen.left(90)
+            pen.forward(50)
+            turtle.done()
+            svg = ET.fromstring(screen.svg())
+
+        self.assertEqual(len(caught), 1)
+        self.assertIn("basthon-turtle[standalone]", str(caught[0].message))
+        lines = svg.findall(".//{http://www.w3.org/2000/svg}line")
+        self.assertTrue(any(line.get("x2") == "100" for line in lines))
+
+    def test_installing_standalone_dependency_after_warning_enables_renderer(self):
+        session = FakeSession()
+        with (
+            mock.patch.object(_notebook, "create_session", return_value=None),
+            mock.patch.object(_notebook, "is_notebook", return_value=False),
+            mock.patch.object(_pyodide, "create_session", return_value=None),
+            mock.patch.object(
+                _standalone, "create_session", return_value=None
+            ) as factory,
+            warnings.catch_warnings(record=True) as caught,
+        ):
+            warnings.simplefilter("always")
+            pen = turtle.Turtle()
+            factory.return_value = session
+            pen.forward(10)
+
+        self.assertEqual(len(caught), 1)
+        self.assertEqual(session.start_count, 1)
+        self.assertEqual(session.commands[0]["type"], "init")
 
     def tearDown(self):
         self._reset_turtle()
