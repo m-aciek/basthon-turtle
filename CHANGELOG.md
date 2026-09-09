@@ -1,5 +1,9 @@
 # Changelog
 
+* Unreleased:
+  * Added CPython-compatible `Vec2D` vectors and screen-independent navigation,
+    with `pos()` and `position()` returning vectors while preserving SVG
+    animation paths across zero and through full turns.
 * 0.3.1:
   * Improve package descriptions.
 * 0.3.0:

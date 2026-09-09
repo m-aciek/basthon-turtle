@@ -1,7 +1,7 @@
-import ast
 import json
 import shutil
 import subprocess
+import tomllib
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -193,16 +193,10 @@ class PyodideBrowserAssetsTests(unittest.TestCase):
         self.assertIn("recursive-include examples *.html *.mjs *.py", manifest)
 
     def test_python_backend_is_part_of_the_discovered_package(self):
-        tree = ast.parse((PROJECT_ROOT / "setup.py").read_text())
-        setup_call = next(
-            node
-            for node in ast.walk(tree)
-            if isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Attribute)
-            and node.func.attr == "setup"
-        )
-        keywords = {keyword.arg: keyword.value for keyword in setup_call.keywords}
-        self.assertIn("packages", keywords)
+        config = tomllib.loads((PROJECT_ROOT / "pyproject.toml").read_text())
+        discovery = config["tool"]["setuptools"]["packages"]["find"]
+        self.assertEqual(discovery["include"], ["basthon.*"])
+        self.assertTrue(discovery["namespaces"])
         backend = PROJECT_ROOT / "basthon" / "turtle" / "_pyodide.py"
         self.assertTrue(backend.is_file())
 
