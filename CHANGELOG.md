@@ -6,6 +6,9 @@
     animation paths across zero and through full turns.
   * Migrated package configuration from `setup.py` to `pyproject.toml`,
     using the uv build backend.
+  * Added warnings on the first visible turtle operation when optional rendering
+    dependencies are missing, suggesting the `notebook` or `standalone` extra
+    for the current environment.
 * 0.3.1:
   * Improve package descriptions.
 * 0.3.0:
