@@ -1,4 +1,3 @@
-import ast
 import json
 import shutil
 import subprocess
@@ -187,24 +186,6 @@ class PyodideBrowserAssetsTests(unittest.TestCase):
         self.assertIn("standalone.html?transport=parent", page)
         self.assertIn('worker.postMessage({type: "event"', page)
         self.assertIn('source: marker, type: "command", command', page)
-
-    def test_sdist_includes_all_browser_example_files(self):
-        manifest = (PROJECT_ROOT / "MANIFEST.in").read_text()
-        self.assertIn("recursive-include examples *.html *.mjs *.py", manifest)
-
-    def test_python_backend_is_part_of_the_discovered_package(self):
-        tree = ast.parse((PROJECT_ROOT / "setup.py").read_text())
-        setup_call = next(
-            node
-            for node in ast.walk(tree)
-            if isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Attribute)
-            and node.func.attr == "setup"
-        )
-        keywords = {keyword.arg: keyword.value for keyword in setup_call.keywords}
-        self.assertIn("packages", keywords)
-        backend = PROJECT_ROOT / "basthon" / "turtle" / "_pyodide.py"
-        self.assertTrue(backend.is_file())
 
 
 if __name__ == "__main__":

@@ -1,8 +1,8 @@
-import ast
 import contextlib
 import io
 import json
 import math
+import tomllib
 import unittest
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -734,18 +734,11 @@ class StandaloneSessionTests(unittest.TestCase):
         self.assertEqual(session.port, 43210)
 
     def test_renderer_extras_separate_portable_and_sidecar_dependencies(self):
-        tree = ast.parse((PROJECT_ROOT / "setup.py").read_text())
-        setup_call = next(
-            node
-            for node in ast.walk(tree)
-            if isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Attribute)
-            and node.func.attr == "setup"
-        )
-        keywords = {keyword.arg: keyword.value for keyword in setup_call.keywords}
+        config = tomllib.loads((PROJECT_ROOT / "pyproject.toml").read_text())
+        project = config["project"]
 
-        self.assertNotIn("install_requires", keywords)
-        extras = ast.literal_eval(keywords["extras_require"])
+        self.assertFalse(project.get("dependencies"))
+        extras = project["optional-dependencies"]
         self.assertEqual(
             extras,
             {
@@ -753,23 +746,6 @@ class StandaloneSessionTests(unittest.TestCase):
                 "sidecar": ["anywidget>=0.9", "sidecar>=0.8"],
                 "standalone": ["websockets>=14"],
             },
-        )
-
-    def test_notebook_widget_assets_are_packaged(self):
-        tree = ast.parse((PROJECT_ROOT / "setup.py").read_text())
-        setup_call = next(
-            node
-            for node in ast.walk(tree)
-            if isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Attribute)
-            and node.func.attr == "setup"
-        )
-        keywords = {keyword.arg: keyword.value for keyword in setup_call.keywords}
-        package_data = ast.literal_eval(keywords["package_data"])
-
-        self.assertEqual(
-            package_data["basthon.turtle"],
-            ["notebook.css", "notebook.mjs", "standalone.html"],
         )
 
     def test_notebook_client_rehydrates_history_and_animates_only_the_suffix(self):

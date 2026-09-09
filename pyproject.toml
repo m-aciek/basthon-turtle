@@ -1,0 +1,42 @@
+[build-system]
+requires = ["uv_build>=0.12.1,<0.13"]
+build-backend = "uv_build"
+
+[project]
+name = "basthon-turtle"
+version = "0.3.1"
+description = "A Python turtle implementation with live SVG rendering across Jupyter, Marimo, Pyodide, and standalone CPython."
+readme = "docs/pypi.rst"
+requires-python = ">=3.4"
+license = "GPL-3.0-or-later"
+authors = [{name = "Maciej Olko", email = "maciej.olko@gmail.com"}]
+classifiers = [
+    "Intended Audience :: Developers",
+    "Topic :: Software Development :: Interpreters",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+]
+
+[project.optional-dependencies]
+notebook = ["anywidget>=0.9"]
+sidecar = ["anywidget>=0.9", "sidecar>=0.8"]
+standalone = ["websockets>=14"]
+
+[project.urls]
+Homepage = "https://github.com/m-aciek/basthon-turtle"
+Changelog = "https://github.com/m-aciek/basthon-turtle/blob/main/CHANGELOG.md"
+
+[tool.uv.build-backend]
+module-name = "basthon.turtle"
+module-root = ""
+source-include = [
+    "CHANGELOG.md",
+    "README.md",
+    "docs/**",
+    "examples/**",
+    "tests/**",
+    "tools/**",
+]
+
+[tool.uv.build-backend.data]
+purelib = "wheel-data"
