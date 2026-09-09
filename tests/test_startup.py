@@ -1,6 +1,8 @@
 import importlib
 import sys
 import unittest
+from pathlib import Path
+from unittest import mock
 
 from basthon import turtle as basthon_turtle
 from basthon.turtle import _startup
@@ -11,7 +13,9 @@ class StartupTests(unittest.TestCase):
         previous = sys.modules.pop("turtle", None)
         self.addCleanup(self._restore_turtle, previous)
 
-        turtle = importlib.import_module("turtle")
+        shim_dir = str(Path(__file__).parents[1] / "wheel-data")
+        with mock.patch.object(sys, "path", [shim_dir, *sys.path]):
+            turtle = importlib.import_module("turtle")
 
         self.assertIs(turtle, basthon_turtle)
 

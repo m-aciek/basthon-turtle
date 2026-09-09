@@ -1,9 +1,0 @@
-include CHANGELOG.md
-include _build.py
-include basthon_turtle.pth
-include basthon_turtle.start
-include basthon/turtle/notebook.css
-include basthon/turtle/notebook.mjs
-include basthon/turtle/standalone.html
-recursive-include docs *.md
-recursive-include examples *.html *.mjs *.py

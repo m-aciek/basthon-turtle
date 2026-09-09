@@ -1,7 +1,6 @@
 import json
 import shutil
 import subprocess
-import tomllib
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -187,18 +186,6 @@ class PyodideBrowserAssetsTests(unittest.TestCase):
         self.assertIn("standalone.html?transport=parent", page)
         self.assertIn('worker.postMessage({type: "event"', page)
         self.assertIn('source: marker, type: "command", command', page)
-
-    def test_sdist_includes_all_browser_example_files(self):
-        manifest = (PROJECT_ROOT / "MANIFEST.in").read_text()
-        self.assertIn("recursive-include examples *.html *.mjs *.py", manifest)
-
-    def test_python_backend_is_part_of_the_discovered_package(self):
-        config = tomllib.loads((PROJECT_ROOT / "pyproject.toml").read_text())
-        discovery = config["tool"]["setuptools"]["packages"]["find"]
-        self.assertEqual(discovery["include"], ["basthon.*"])
-        self.assertTrue(discovery["namespaces"])
-        backend = PROJECT_ROOT / "basthon" / "turtle" / "_pyodide.py"
-        self.assertTrue(backend.is_file())
 
 
 if __name__ == "__main__":

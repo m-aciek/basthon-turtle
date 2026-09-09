@@ -748,15 +748,6 @@ class StandaloneSessionTests(unittest.TestCase):
             },
         )
 
-    def test_notebook_widget_assets_are_packaged(self):
-        config = tomllib.loads((PROJECT_ROOT / "pyproject.toml").read_text())
-        package_data = config["tool"]["setuptools"]["package-data"]
-
-        self.assertEqual(
-            package_data["basthon.turtle"],
-            ["notebook.css", "notebook.mjs", "standalone.html"],
-        )
-
     def test_notebook_client_rehydrates_history_and_animates_only_the_suffix(self):
         path = PROJECT_ROOT / "basthon" / "turtle" / "notebook.mjs"
         client = path.read_text()
