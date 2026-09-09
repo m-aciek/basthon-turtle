@@ -1,5 +1,7 @@
 import contextlib
+import types
 import unittest
+import warnings
 from unittest import mock
 
 from basthon import turtle
@@ -276,6 +278,46 @@ class NotebookBackendSelectionTests(unittest.TestCase):
         pyodide.assert_not_called()
         standalone.assert_not_called()
         self.assertGreaterEqual(session.emit.call_count, 1)
+
+    def test_missing_widget_dependencies_warn_without_starting_standalone(self):
+        for host in ("jupyter", "marimo"):
+            with self.subTest(host=host):
+                self._reset_turtle()
+                shell = mock.Mock() if host == "jupyter" else None
+                marimo = types.SimpleNamespace(running_in_notebook=lambda: True)
+                with (
+                    mock.patch.object(_notebook, "_get_shell", return_value=shell),
+                    mock.patch.dict("sys.modules", {"marimo": marimo}),
+                    mock.patch.object(
+                        _notebook.importlib.util,
+                        "find_spec",
+                        side_effect=lambda name: object()
+                        if name == "marimo" and host == "marimo"
+                        else None,
+                    ),
+                    mock.patch.object(_pyodide, "create_session") as pyodide,
+                    mock.patch.object(_standalone, "create_session") as standalone,
+                    warnings.catch_warnings(record=True) as caught,
+                ):
+                    warnings.simplefilter("always")
+                    self.assertTrue(_notebook.is_notebook())
+                    pen = turtle.Turtle()
+                    pen.forward(10)
+                    pen.left(90)
+
+                self.assertEqual(len(caught), 1)
+                self.assertIn("basthon-turtle[notebook]", str(caught[0].message))
+                pyodide.assert_not_called()
+                standalone.assert_not_called()
+
+    def test_terminal_ipython_is_not_a_notebook(self):
+        with (
+            mock.patch.object(_notebook, "_is_marimo_running", return_value=False),
+            mock.patch.object(
+                _notebook, "_get_shell", return_value=types.SimpleNamespace()
+            ),
+        ):
+            self.assertFalse(_notebook.is_notebook())
 
     def test_marimo_backend_takes_priority_over_jupyter(self):
         with (

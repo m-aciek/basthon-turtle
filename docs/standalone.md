@@ -23,11 +23,12 @@ threads, so ordinary turtle commands do not take over the Python main thread.
 The same server, browser page, WebSocket connection, and SVG element remain
 alive for later REPL commands.
 
-The standalone extra is detected by the availability of its optional
-`websockets` dependency. A base install without that dependency retains the
-existing static SVG behavior. Environments that already provide `websockets`
-also enable this PoC automatically on CPython; Pyodide and WASI stay in static
-mode.
+Outside notebooks, Pyodide, and WASI, turtle assumes standalone mode. The
+standalone extra is detected by the availability of its optional `websockets`
+dependency. If it is missing, the first visible operation warns once per
+screen to install `basthon-turtle[standalone]`; static SVG output remains
+available. Environments that already provide `websockets` enable the browser
+window automatically.
 
 ## Architecture
 

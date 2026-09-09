@@ -8,6 +8,10 @@ Install the portable Jupyter renderer with:
 pip install "basthon-turtle[notebook]"
 ```
 
+If the widget dependencies are missing, the first visible turtle operation
+warns once per screen to install `basthon-turtle[notebook]`. The notebook is
+still recognized, so turtle does not open a standalone browser window.
+
 Then use the normal `turtle` API in separate cells. There is no need to call
 `done()` or display `svg()` explicitly:
 

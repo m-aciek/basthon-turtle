@@ -35,14 +35,26 @@ def is_available():
     )
 
 
-def _is_marimo_available():
+def _is_marimo_running():
     """Return whether code is running in a Marimo notebook."""
     if importlib.util.find_spec("marimo") is None:
         return False
     import marimo
 
+    return marimo.running_in_notebook()
+
+
+def is_notebook():
+    """Detect a notebook host independently of optional widget dependencies."""
+    if _is_marimo_running():
+        return True
+    shell = _get_shell()
+    return shell is not None and getattr(shell, "kernel", None) is not None
+
+
+def _is_marimo_available():
     return (
-        marimo.running_in_notebook()
+        _is_marimo_running()
         and importlib.util.find_spec("anywidget") is not None
         and importlib.util.find_spec("traitlets") is not None
     )
