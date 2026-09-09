@@ -41,8 +41,8 @@ this metric measures signature equality, not every possible call's validity.
 Uninspectable reference signatures are marked `not_applicable`.
 
 Cases in `tools/compatibility_checks.py` are guided by `TestVec2D` and
-`TestTNavigator` in CPython's `Lib/test/test_turtle.py` (inspected in the adjacent
-checkout). They use positions and headings instead of `_orient` or `_position`.
+`TestTNavigator` in CPython's `Lib/test/test_turtle.py`. They use public positions
+and headings instead of `_orient` or `_position`.
 No adapters implement movement or attach screens to make the candidate pass.
 Pickling, pen-dependent circle behavior, and private/Tk tests are omitted.
 Navigator cases supply sequences of public calls to the same runner for each
@@ -58,13 +58,25 @@ tolerance `1e-7`. Exception types are compared, with messages retained only as
 diagnostics. Implementation stdout/stderr is suppressed in the CLI to keep JSON
 parseable; this report does not measure printed diagnostics.
 
-The initial report is a baseline: known incompatibilities are expected.
-The first measurement on CPython 3.14.0 is **114/126** module symbols available,
-**80/114** matching inspectable signatures on available symbols, **0/14** passing
-`Vec2D` cases, and **7/33** passing `TNavigator` cases. `Vec2D` is absent. Bare
-Basthon navigators do not update coordinates through their movement hooks,
-turns need screen attributes, navigator arguments to `distance()`/`towards()`
-fail, and `teleport()` is missing. These results do not describe `Turtle` behavior.
+The CPython 3.14.0 baseline has **115/126** module symbols available,
+**81/115** matching inspectable signatures on available symbols, **14/14**
+passing `Vec2D` cases, and **32/33** passing `TNavigator` cases. The remaining
+navigation case is the unimplemented `teleport()`.
+
+Navigation uses `Vec2D` for positions and orientations and works independently
+of a screen. SVG animation separately accumulates signed rotation angles so
+full turns and crossing zero preserve their animation path. Tests in
+`tests/compatibility/test_navigation.py` cover vector position results, copying,
+pickling, and navigation across modes and angle units. The standalone tests
+check both serialized SVG rotation endpoints and live commands. These checks
+do not establish complete `Turtle` or browser compatibility.
+
+World mode uses the standard heading convention when changing angle units.
+This intentionally differs from CPython 3.14.0, which introduces a quarter-turn
+heading offset in world mode after `degrees()` or `radians()`. Tests assert
+the expected headings and movement directly and use CPython's standard mode
+as the reference for world-mode unit changes. Invalid navigator modes warn
+and fall back to the configured mode.
 
 `tests/compatibility/baseline.json` stores individual check IDs and statuses,
 scoped to a CPython minor version. `--check-baseline` exits with status 1 if a

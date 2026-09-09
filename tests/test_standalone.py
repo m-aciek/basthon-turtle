@@ -2,7 +2,9 @@ import ast
 import contextlib
 import io
 import json
+import math
 import unittest
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from unittest import mock
 
@@ -113,6 +115,155 @@ class LiveRenderingTests(unittest.TestCase):
         for command in session.commands:
             self.assertNotIn("svg", command)
             self.assertNotIn("scene", command)
+
+    def test_svg_and_live_rotations_preserve_wraparound_and_full_turns(self):
+        session = FakeSession()
+        with mock.patch.object(_standalone, "create_session", return_value=session):
+            pen = turtle.Turtle()
+            pen.left(350)
+            session.commands.clear()
+            start = pen._old_heading
+            for method, angle, delta, heading in (
+                ("left", 20, -20, 10),
+                ("right", 20, 20, 350),
+                ("left", 720, -720, 350),
+                ("right", 1080, 1080, 350),
+                ("left", -20, 20, 330),
+                ("setheading", 360010, -40, 10),
+            ):
+                with self.subTest(method=method, angle=angle):
+                    getattr(pen, method)(angle)
+                    command = session.commands[-1]
+                    self.assertEqual(command["type"], "rotate")
+                    self.assertAlmostEqual(command["from"], start)
+                    self.assertAlmostEqual(command["to"], start + delta)
+                    self.assertGreater(command["duration"], 0)
+                    self.assertAlmostEqual(pen.heading(), heading)
+                    root = ET.fromstring(str(pen.svg))
+                    animation = root.findall("animateTransform")[-1]
+                    self.assertAlmostEqual(
+                        float(animation.attrib["from"].split(",")[0]), start
+                    )
+                    self.assertAlmostEqual(
+                        float(animation.attrib["to"].split(",")[0]), start + delta
+                    )
+                    start += delta
+
+    def test_rotation_units_and_hidden_turns(self):
+        session = FakeSession()
+        with mock.patch.object(_standalone, "create_session", return_value=session):
+            pen = turtle.Turtle()
+            pen.radians()
+            pen.left(4 * math.pi)
+            self.assertAlmostEqual(
+                session.commands[-1]["to"] - session.commands[-1]["from"], -720
+            )
+            pen.seth(math.pi / 2)
+            self.assertAlmostEqual(pen.heading(), math.pi / 2)
+            pen.hideturtle()
+            session.commands.clear()
+            pen.right(6 * math.pi)
+            self.assertEqual(session.commands, [])
+            pen.showturtle()
+            visibility = next(
+                c for c in session.commands if c["type"] == "visibility"
+            )
+            self.assertAlmostEqual(visibility["angle"], 180)
+            pen.forward(10)
+            self.assertAlmostEqual(pen.xcor(), 0)
+            self.assertAlmostEqual(pen.ycor(), 10)
+
+    def test_logo_initial_orientation_and_reset(self):
+        session = FakeSession()
+        with (
+            mock.patch.dict(turtle._CFG, {"mode": "logo"}),
+            mock.patch.object(_standalone, "create_session", return_value=session),
+        ):
+            pen = turtle.Turtle()
+            self.assertEqual(pen.heading(), 0)
+            self.assertEqual(session.commands[-1]["to"], -180)
+            pen.forward(10)
+            self.assertEqual(pen.pos(), (0, 10))
+            pen.right(90)
+            self.assertEqual(pen.heading(), 90)
+            self.assertEqual(session.commands[-1]["to"], -90)
+            pen.forward(5)
+            self.assertAlmostEqual(pen.xcor(), 5)
+            pen.reset()
+            self.assertEqual(pen.pos(), (0, 0))
+            self.assertEqual(pen.heading(), 0)
+            rotations = [c for c in session.commands if c["type"] == "rotate"]
+            self.assertEqual(rotations[-1]["to"], -180)
+
+    def test_reversed_world_axis_changes_rendering_not_navigation(self):
+        session = FakeSession()
+        with mock.patch.object(_standalone, "create_session", return_value=session):
+            screen = turtle.Screen()
+            screen.setworldcoordinates(-100, 100, 100, -100)
+            pen = turtle.Turtle()
+            pen.left(90)
+            self.assertEqual(session.commands[-1]["to"], 0)
+            pen.forward(10)
+            self.assertAlmostEqual(pen.xcor(), 0)
+            self.assertAlmostEqual(pen.ycor(), 10)
+            self.assertGreater(session.commands[-1]["to"][1], 0)
+
+    def test_world_angle_units_preserve_home_and_svg_orientation(self):
+        session = FakeSession()
+        with mock.patch.object(_standalone, "create_session", return_value=session):
+            screen = turtle.Screen()
+            screen.setworldcoordinates(-100, -100, 100, 100)
+            pen = turtle.Turtle()
+            for units, args in (
+                ("degrees", ()), ("degrees", (400,)), ("radians", ())
+            ):
+                with self.subTest(units=units, args=args):
+                    getattr(pen, units)(*args)
+                    self.assertEqual(pen.heading(), 0)
+                    pen.home()
+                    pen.forward(10)
+                    self.assertAlmostEqual(pen.xcor(), 10)
+                    self.assertAlmostEqual(pen.ycor(), 0)
+                    rotation = next(
+                        c for c in reversed(session.commands)
+                        if c["type"] == "rotate"
+                    )
+                    self.assertAlmostEqual(rotation["to"], -90)
+                    root = ET.fromstring(str(pen.svg))
+                    animation = root.findall("animateTransform")[-1]
+                    self.assertAlmostEqual(
+                        float(animation.attrib["to"].split(",")[0]), -90
+                    )
+
+    def test_instant_rotation_and_clone_keep_vector_state(self):
+        session = FakeSession()
+        with mock.patch.object(_standalone, "create_session", return_value=session):
+            pen = turtle.Turtle()
+            pen.screen.animation("off")
+            pen.goto(turtle.Vec2D(3, 4))
+            pen.left(450)
+            root = ET.fromstring(str(pen.svg))
+            self.assertIn("rotate(-540.0, 0, 0)", root.attrib["transform"])
+            clone = pen.clone()
+            self.assertIsInstance(clone.pos(), turtle.Vec2D)
+            self.assertEqual(clone.pos(), pen.pos())
+            self.assertEqual(clone.heading(), pen.heading())
+            clone.forward(10)
+            self.assertAlmostEqual(clone.xcor(), 3)
+            self.assertAlmostEqual(clone.ycor(), 14)
+            self.assertEqual(pen.pos(), (3, 4))
+
+    def test_forward_and_backward_have_equal_animation_duration(self):
+        session = FakeSession()
+        with mock.patch.object(_standalone, "create_session", return_value=session):
+            pen = turtle.Turtle()
+            session.commands.clear()
+            pen.forward(100)
+            pen.back(100)
+            pen.forward(-100)
+        durations = [c["duration"] for c in session.commands]
+        self.assertGreater(durations[0], 1)
+        self.assertEqual(durations, [durations[0]] * 3)
 
     def test_supported_style_visibility_background_and_write_commands(self):
         session = FakeSession()
