@@ -94,6 +94,7 @@ class SVGSession:
         self._shell = shell
         self._snapshot = snapshot
         self._display = None
+        self._display_cell_id = None
         self._last_svg = None
         self._cell_active = True
         self._closed = False
@@ -111,6 +112,21 @@ class SVGSession:
         self._cell_active = True
 
     def _post_run_cell(self, _result=None):
+        info = getattr(_result, "info", None)
+        cell_id = getattr(info, "cell_id", None)
+        if cell_id is None:
+            # JupyterLite does not pass the cell ID to IPython's run_cell.
+            get_parent = getattr(self._shell.kernel, "get_parent", None)
+            if get_parent is not None:
+                parent = get_parent() or {}
+                cell_id = parent.get("metadata", {}).get("cellId")
+        if cell_id is not None and cell_id == self._display_cell_id:
+            # Rerunning the owning cell clears its output. An update to the
+            # old display ID cannot restore it, even if the scene changed.
+            self._display = None
+            self._last_svg = None
+        if self._display is None:
+            self._display_cell_id = cell_id
         self._cell_active = False
         self.flush()
 

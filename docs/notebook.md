@@ -88,6 +88,8 @@ One inline SVG output updates after each cell that changes the scene, including
 cells that end with an exception. Drawing accumulates across cells without
 calling `done()` or `svg()`. This renderer uses Jupyter's ordinary display
 messages and needs no widget extension or notebook extra.
+Rerunning the cell that owns the SVG output restores the accumulated drawing
+in that cell, including any changes made during the rerun.
 
 The SVG renderer shows the completed drawing after each cell. It does not
 support movement animation, mouse or keyboard callbacks, or the sidecar panel.

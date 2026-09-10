@@ -491,6 +491,69 @@ class SVGNotebookTests(unittest.TestCase):
         self.finish_cell()
         self.handle.update.assert_not_called()
 
+    def check_owning_cell_reruns(self, use_parent_metadata):
+        outputs = {}
+
+        def display(svg, display_id):
+            key = object()
+            outputs[key] = svg
+
+            def update(svg):
+                # Jupyter ignores updates to an output that was cleared.
+                if key in outputs:
+                    outputs[key] = svg
+
+            return types.SimpleNamespace(update=update)
+
+        self.display.side_effect = display
+        self.shell.kernel = mock.Mock()
+
+        def run_cell(cell_id, draw=None, rerun_owner=False, error=None):
+            if rerun_owner:
+                outputs.clear()
+            info = types.SimpleNamespace(
+                cell_id=None if use_parent_metadata else cell_id
+            )
+            self.shell.kernel.get_parent.return_value = {
+                "metadata": {"cellId": cell_id}
+            }
+            self.shell.events.trigger("pre_run_cell", info)
+            if draw is not None:
+                draw()
+            self.shell.events.trigger(
+                "post_run_cell",
+                types.SimpleNamespace(info=info, error_in_exec=error),
+            )
+            self.assertEqual(len(outputs), 1)
+            return next(iter(outputs.values()))
+
+        first = run_cell("owner", lambda: turtle.forward(100))
+        second = run_cell("other", lambda: turtle.forward(100))
+        self.assertNotEqual(first, second)
+        self.display.assert_called_once()
+
+        third = run_cell("owner", lambda: turtle.forward(25), rerun_owner=True)
+        self.assertEqual(self.display.call_count, 2)
+        self.assertEqual(len(self.nodes(ET.fromstring(third), "line")), 3)
+
+        # Restore an unchanged drawing too, including after a cell error.
+        restored = run_cell(
+            "owner", rerun_owner=True, error=RuntimeError("cell failed")
+        )
+        self.assertEqual(restored, third)
+        self.assertEqual(self.display.call_count, 3)
+        self.assertEqual(run_cell("other"), restored)
+        self.assertEqual(self.display.call_count, 3)
+        fourth = run_cell("other", lambda: turtle.forward(10))
+        self.assertEqual(len(self.nodes(ET.fromstring(fourth), "line")), 4)
+        self.assertEqual(self.display.call_count, 3)
+
+    def test_owning_cell_reruns_restore_the_svg_output(self):
+        self.check_owning_cell_reruns(use_parent_metadata=False)
+
+    def test_jupyterlite_owner_is_identified_from_request_metadata(self):
+        self.check_owning_cell_reruns(use_parent_metadata=True)
+
     def test_clear_preserves_other_turtles_and_later_drawing(self):
         first = turtle.Turtle()
         second = turtle.Turtle()
