@@ -4,6 +4,7 @@ The optional dependencies are imported only after a supported notebook runtime
 is detected. Jupyter commands are buffered while a cell runs and published as
 one widget-state update from IPython's ``post_run_cell`` event. Marimo commands
 are published immediately to a persistent ``mo.ui.anywidget`` output.
+The explicit SVG renderer uses ordinary Jupyter display updates without widgets.
 """
 
 from __future__ import annotations
@@ -13,6 +14,7 @@ from pathlib import Path
 
 
 _USE_SIDECAR = True
+_RENDERER = "widget"
 _WIDGET_CLASS = None
 
 
@@ -66,13 +68,89 @@ def use_sidecar(enabled=True):
     _USE_SIDECAR = bool(enabled)
 
 
-def create_session():
+def uses_svg_renderer():
+    """Whether this Jupyter kernel was configured for plain SVG output."""
+    if _RENDERER != "svg" or _is_marimo_running():
+        return False
+    shell = _get_shell()
+    return shell is not None and getattr(shell, "kernel", None) is not None
+
+
+def create_session(svg_snapshot=None):
     """Create a session for the active supported notebook runtime."""
+    if uses_svg_renderer():
+        return SVGSession(_get_shell(), svg_snapshot)
     if _is_marimo_available():
         return MarimoSession()
     if not is_available():
         return None
     return NotebookSession(_get_shell(), use_sidecar=_USE_SIDECAR)
+
+
+class SVGSession:
+    """Refresh one ordinary SVG display after each Jupyter cell."""
+
+    def __init__(self, shell, snapshot):
+        self._shell = shell
+        self._snapshot = snapshot
+        self._display = None
+        self._display_cell_id = None
+        self._last_svg = None
+        self._cell_active = True
+        self._closed = False
+        self.started = False
+
+    def emit(self, command):
+        if self._closed:
+            raise RuntimeError("notebook turtle session is closed")
+        if not self.started:
+            self._shell.events.register("pre_run_cell", self._pre_run_cell)
+            self._shell.events.register("post_run_cell", self._post_run_cell)
+            self.started = True
+
+    def _pre_run_cell(self, _info=None):
+        self._cell_active = True
+
+    def _post_run_cell(self, _result=None):
+        info = getattr(_result, "info", None)
+        cell_id = getattr(info, "cell_id", None)
+        if cell_id is None:
+            # JupyterLite does not pass the cell ID to IPython's run_cell.
+            get_parent = getattr(self._shell.kernel, "get_parent", None)
+            if get_parent is not None:
+                parent = get_parent() or {}
+                cell_id = parent.get("metadata", {}).get("cellId")
+        if cell_id is not None and cell_id == self._display_cell_id:
+            # Rerunning the owning cell clears its output. An update to the
+            # old display ID cannot restore it, even if the scene changed.
+            self._display = None
+            self._last_svg = None
+        if self._display is None:
+            self._display_cell_id = cell_id
+        self._cell_active = False
+        self.flush()
+
+    def flush(self):
+        if self._closed or self._cell_active:
+            return False
+        from IPython.display import SVG, display
+
+        svg = self._snapshot()
+        if svg != self._last_svg:
+            if self._display is None:
+                self._display = display(SVG(svg), display_id=True)
+            else:
+                self._display.update(SVG(svg))
+            self._last_svg = svg
+        return True
+
+    def close(self):
+        if self._closed:
+            return
+        self._closed = True
+        if self.started:
+            self._shell.events.unregister("pre_run_cell", self._pre_run_cell)
+            self._shell.events.unregister("post_run_cell", self._post_run_cell)
 
 
 def _get_widget_class():
@@ -247,6 +325,22 @@ class NotebookSession:
                 close()
 
 
+def _register_marimo_cleanup(callback):
+    """Release a view when Marimo invalidates the cell that owns it."""
+    from marimo._runtime.cell_lifecycle_item import CellLifecycleItem
+    from marimo._runtime.context import get_context
+
+    class ViewLifecycle(CellLifecycleItem):
+        def create(self, context):
+            pass
+
+        def dispose(self, context, deletion):
+            callback()
+            return True
+
+    get_context().cell_lifecycle_registry.add(ViewLifecycle())
+
+
 class MarimoSession(NotebookSession):
     """An immediately synchronized AnyWidget mounted in a Marimo cell."""
 
@@ -255,6 +349,7 @@ class MarimoSession(NotebookSession):
         widget_factory=None,
         wrap_widget=None,
         replace_output=None,
+        register_cleanup=None,
     ):
         super().__init__(
             shell=None,
@@ -263,6 +358,7 @@ class MarimoSession(NotebookSession):
         )
         self._wrap_widget = wrap_widget
         self._replace_output = replace_output
+        self._register_cleanup = register_cleanup or _register_marimo_cleanup
         self._cell_active = False
         self.output = None
 
@@ -274,6 +370,12 @@ class MarimoSession(NotebookSession):
             raise RuntimeError("notebook turtle session is closed")
 
         self.widget = self._widget_factory()
+        # A rerun invalidates the view, but the screen and command history
+        # survive. Restore that drawing instantly before animating new work.
+        if self._history:
+            with self.widget.hold_trait_notifications():
+                self.widget.animation_start = len(self._history)
+                self.widget.history = list(self._history)
         self.widget.on_msg(self._receive_message)
 
         wrap_widget = self._wrap_widget
@@ -289,6 +391,21 @@ class MarimoSession(NotebookSession):
         self.output = wrap_widget(self.widget)
         replace_output(self.output)
         self._started = True
+        self._register_cleanup(self._dispose_view)
+
+    def _dispose_view(self):
+        """Discard cell-owned resources without resetting the turtle screen."""
+        widget = self.widget
+        self.widget = None
+        self.output = None
+        self._started = False
+        if widget is not None:
+            widget.close()
+
+    def _receive_message(self, widget, content, buffers=None):
+        # A removed view can still have browser events in flight.
+        if widget is self.widget:
+            super()._receive_message(widget, content, buffers)
 
     def _publish(self):
         if not self._pending or self.widget is None:
@@ -307,5 +424,4 @@ class MarimoSession(NotebookSession):
         if self._closed:
             return
         self._closed = True
-        if self.widget is not None:
-            self.widget.close()
+        self._dispose_view()

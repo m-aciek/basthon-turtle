@@ -56,6 +56,52 @@ mirror it into an independent panel. Right-click its output, choose **Create
 New View for Cell Output**, then dock the synchronized view beside the
 notebook.
 
+## JupyterLite without anywidget
+
+Some JupyterLite sites, including `jupyter.org/try-jupyter`, do not include
+the anywidget browser extension. Installing `basthon-turtle[notebook]` in a
+Pyodide cell only installs the Python dependencies; it cannot add that browser
+extension to the hosted site. This can produce `No version of module anywidget
+is registered` when drawing.
+
+Use the SVG renderer in these environments. Install the base package in a cell:
+
+```python
+%pip install basthon-turtle
+```
+
+Select the renderer before drawing, then use the normal turtle API:
+
+```python
+from turtle import *
+
+jupyter_renderer("svg")
+forward(100)
+```
+
+```python
+left(90)
+forward(50)
+```
+
+One inline SVG output updates after each cell that changes the scene, including
+cells that end with an exception. Drawing accumulates across cells without
+calling `done()` or `svg()`. This renderer uses Jupyter's ordinary display
+messages and needs no widget extension or notebook extra.
+Rerunning the cell that owns the SVG output restores the accumulated drawing
+in that cell, including any changes made during the rerun.
+
+The SVG renderer shows the completed drawing after each cell. It does not
+support movement animation, mouse or keyboard callbacks, or the sidecar panel.
+Calling `animation("on")` in this mode raises `ValueError`.
+
+The default remains `jupyter_renderer("widget")` for animated, interactive
+output. Renderer selection is explicit: importing anywidget in Python does
+not tell us whether its browser extension is available. To change renderers
+after drawing has started, restart the kernel and select the renderer before
+drawing again. This setting applies to Jupyter, including JupyterLite; Marimo
+continues to use its native widget integration.
+
 ## Cell behavior
 
 The notebook renderer uses the same semantic commands as standalone mode, but
@@ -114,6 +160,10 @@ Marimo does not expose the IPython cell hooks used by the Jupyter backend, so
 each semantic command is synchronized immediately. The browser still consumes
 the commands in FIFO order and preserves the drawing between cells. Browser
 callbacks use the same bidirectional widget connection as in Jupyter.
+
+Rerunning the cell that hosts the canvas recreates its widget and restores the
+existing drawing without animation. New turtle commands then animate normally;
+for example, rerunning `forward(100)` advances the turtle another 100 units.
 
 The renderer uses Marimo's native `mo.ui.anywidget` integration and mounts it
 through `mo.output.replace`; users do not need to import `marimo`, call

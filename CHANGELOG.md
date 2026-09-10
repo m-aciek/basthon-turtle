@@ -1,5 +1,11 @@
 # Changelog
 
+* 0.4.1:
+  * Fixed the Marimo canvas disappearing when its cell is rerun, preserving
+    the existing drawing and animating new commands in a replacement widget.
+  * Added `jupyter_renderer("svg")` for JupyterLite sites without the anywidget
+    browser extension, updating one SVG output after each cell and preserving
+    the accumulated drawing across cell reruns, including after a cell error.
 * 0.4.0:
   * Added CPython-compatible `Vec2D` vectors and screen-independent navigation,
     with `pos()` and `position()` returning vectors while preserving SVG

@@ -43,6 +43,7 @@ import math
 import sys
 import warnings
 
+from copy import copy
 from uuid import uuid4
 
 from . import _notebook
@@ -288,13 +289,15 @@ class Screen(metaclass=Singleton):
         }
         self._colormode = 1.0
         self._delayvalue = 0
-        self._animate = True
+        self._animate = not _notebook.uses_svg_renderer()
         self._old_svg_scene = None
         self.reset()
 
     def animation(self, onoff):
         onoff = onoff.lower()
         if onoff == "on":
+            if _notebook.uses_svg_renderer():
+                raise ValueError("The SVG notebook renderer does not support animation.")
             self._animate = True
         elif onoff == "off":
             self._animate = False
@@ -336,10 +339,27 @@ class Screen(metaclass=Singleton):
             "background": _browser_color(self.background_color),
         }
 
+    def _svg_snapshot(self):
+        """Include current turtles without finalizing or modifying the scene."""
+        scene = copy(self.svg_scene)
+        turtles = copy(self.turtle_canvas)
+        turtles._children = list(turtles._children)
+        for pen in self._turtles:
+            if pen.svg not in turtles._children:
+                turtles.appendChild(pen.svg)
+        scene._children = [
+            turtles if child is self.turtle_canvas else child
+            for child in scene._children
+            if child is not self._timing_anim
+        ]
+        return str(scene)
+
     def _emit_live(self, command):
         """Send one semantic operation to the optional live renderer."""
         if self._standalone_session is None:
-            self._standalone_session = _notebook.create_session()
+            self._standalone_session = _notebook.create_session(
+                svg_snapshot=self._svg_snapshot
+            )
             if self._standalone_session is None:
                 if _notebook.is_notebook():
                     self._warn_missing_extra("notebook", "Live notebook rendering")
@@ -1999,6 +2019,25 @@ class Turtle(TPen, TNavigator):
 Pen = Turtle
 
 
+def jupyter_renderer(renderer="widget"):
+    """Select 'widget' or a plain 'svg' display before drawing in Jupyter."""
+    if renderer not in {"widget", "svg"}:
+        raise ValueError("Jupyter renderer must be 'widget' or 'svg'.")
+    screen = Singleton._instances.get(Screen)
+    if screen is not None and (
+        screen._turtles
+        or screen.frame_index
+        or (
+            screen._standalone_session is not None
+            and screen._standalone_session.started
+        )
+    ):
+        raise RuntimeError("configure the Jupyter renderer before drawing")
+    _notebook._RENDERER = renderer
+    if screen is not None:
+        screen._animate = not _notebook.uses_svg_renderer()
+
+
 def jupyter_sidecar(enabled=True):
     """Choose whether future Jupyter turtle widgets use a sidecar panel."""
     screen = Singleton._instances.get(Screen)
@@ -2205,6 +2244,7 @@ __all__ = (
     + _tg_turtle_functions
     + [
         "done",
+        "jupyter_renderer",
         "jupyter_sidecar",
         "mainloop",
         "restart",
