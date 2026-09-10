@@ -1,6 +1,6 @@
 # Changelog
 
-* Unreleased:
+* 0.4.1:
   * Fixed the Marimo canvas disappearing when its cell is rerun, preserving
     the existing drawing and animating new commands in a replacement widget.
   * Added `jupyter_renderer("svg")` for JupyterLite sites without the anywidget
