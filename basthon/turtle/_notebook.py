@@ -247,6 +247,22 @@ class NotebookSession:
                 close()
 
 
+def _register_marimo_cleanup(callback):
+    """Release a view when Marimo invalidates the cell that owns it."""
+    from marimo._runtime.cell_lifecycle_item import CellLifecycleItem
+    from marimo._runtime.context import get_context
+
+    class ViewLifecycle(CellLifecycleItem):
+        def create(self, context):
+            pass
+
+        def dispose(self, context, deletion):
+            callback()
+            return True
+
+    get_context().cell_lifecycle_registry.add(ViewLifecycle())
+
+
 class MarimoSession(NotebookSession):
     """An immediately synchronized AnyWidget mounted in a Marimo cell."""
 
@@ -255,6 +271,7 @@ class MarimoSession(NotebookSession):
         widget_factory=None,
         wrap_widget=None,
         replace_output=None,
+        register_cleanup=None,
     ):
         super().__init__(
             shell=None,
@@ -263,6 +280,7 @@ class MarimoSession(NotebookSession):
         )
         self._wrap_widget = wrap_widget
         self._replace_output = replace_output
+        self._register_cleanup = register_cleanup or _register_marimo_cleanup
         self._cell_active = False
         self.output = None
 
@@ -274,6 +292,12 @@ class MarimoSession(NotebookSession):
             raise RuntimeError("notebook turtle session is closed")
 
         self.widget = self._widget_factory()
+        # A rerun invalidates the view, but the screen and command history
+        # survive. Restore that drawing instantly before animating new work.
+        if self._history:
+            with self.widget.hold_trait_notifications():
+                self.widget.animation_start = len(self._history)
+                self.widget.history = list(self._history)
         self.widget.on_msg(self._receive_message)
 
         wrap_widget = self._wrap_widget
@@ -289,6 +313,21 @@ class MarimoSession(NotebookSession):
         self.output = wrap_widget(self.widget)
         replace_output(self.output)
         self._started = True
+        self._register_cleanup(self._dispose_view)
+
+    def _dispose_view(self):
+        """Discard cell-owned resources without resetting the turtle screen."""
+        widget = self.widget
+        self.widget = None
+        self.output = None
+        self._started = False
+        if widget is not None:
+            widget.close()
+
+    def _receive_message(self, widget, content, buffers=None):
+        # A removed view can still have browser events in flight.
+        if widget is self.widget:
+            super()._receive_message(widget, content, buffers)
 
     def _publish(self):
         if not self._pending or self.widget is None:
@@ -307,5 +346,4 @@ class MarimoSession(NotebookSession):
         if self._closed:
             return
         self._closed = True
-        if self.widget is not None:
-            self.widget.close()
+        self._dispose_view()

@@ -208,6 +208,7 @@ class MarimoSessionTests(unittest.TestCase):
             widget_factory=lambda: widget,
             wrap_widget=wrap_widget,
             replace_output=replace_output,
+            register_cleanup=mock.Mock(),
         )
         return session, widget, wrap_widget, replace_output
 
@@ -245,6 +246,66 @@ class MarimoSessionTests(unittest.TestCase):
         session.close()
 
         self.assertTrue(widget.closed)
+
+    def test_cell_reruns_restore_history_in_a_new_widget(self):
+        session, _widget, wrap, replace = self.make_session()
+        session._widget_factory = FakeWidget
+        widgets = []
+
+        for count in range(1, 4):
+            session.emit({"type": "move", "to": [100 * count, 0]})
+            widget = session.widget
+            widgets.append(widget)
+            self.assertEqual(len(widget.history), count)
+            self.assertEqual(widget.animation_start, count - 1)
+            self.assertEqual(widget.history[-1]["to"], [100 * count, 0])
+            self.assertEqual(replace.call_count, count)
+            self.assertEqual(wrap.call_count, count)
+
+            # Marimo disposes the owning cell before executing it again.
+            cleanup = session._register_cleanup.call_args.args[0]
+            cleanup()
+            self.assertTrue(widget.closed)
+            self.assertFalse(session.started)
+
+        self.assertEqual(len({id(widget) for widget in widgets}), 3)
+
+    def test_other_cells_keep_using_the_mounted_widget(self):
+        session, widget, wrap, replace = self.make_session()
+        session.emit({"type": "init"})
+        session.emit({"type": "move", "to": [100, 0]})
+
+        wrap.assert_called_once_with(widget)
+        replace.assert_called_once_with(session.output)
+        session._register_cleanup.assert_called_once()
+
+    def test_disposed_widget_events_cannot_update_replacement(self):
+        session, old_widget, _wrap, _replace = self.make_session()
+        handler = mock.Mock()
+        session.set_event_handler(handler)
+        session.emit({"type": "init"})
+        session._register_cleanup.call_args.args[0]()
+        session._widget_factory = FakeWidget
+        session.emit({"type": "move", "to": [100, 0]})
+
+        old_widget.receive({"type": "rendered", "count": 2})
+        old_widget.receive({"type": "event", "event": "click"})
+        self.assertEqual(session.widget.animation_start, 1)
+        handler.assert_not_called()
+
+        session.widget.receive({"type": "event", "event": "click"})
+        handler.assert_called_once()
+
+    def test_cell_cleanup_after_close_is_idempotent(self):
+        session, widget, _wrap, _replace = self.make_session()
+        session.emit({"type": "init"})
+        cleanup = session._register_cleanup.call_args.args[0]
+        session.close()
+        cleanup()
+
+        self.assertTrue(widget.closed)
+        with self.assertRaisesRegex(RuntimeError, "closed"):
+            session.emit({"type": "move"})
 
 
 class NotebookBackendSelectionTests(unittest.TestCase):

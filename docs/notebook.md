@@ -115,6 +115,10 @@ each semantic command is synchronized immediately. The browser still consumes
 the commands in FIFO order and preserves the drawing between cells. Browser
 callbacks use the same bidirectional widget connection as in Jupyter.
 
+Rerunning the cell that hosts the canvas recreates its widget and restores the
+existing drawing without animation. New turtle commands then animate normally;
+for example, rerunning `forward(100)` advances the turtle another 100 units.
+
 The renderer uses Marimo's native `mo.ui.anywidget` integration and mounts it
 through `mo.output.replace`; users do not need to import `marimo`, call
 `done()`, or wrap `svg()` in `mo.Html`.
