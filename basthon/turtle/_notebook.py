@@ -4,6 +4,7 @@ The optional dependencies are imported only after a supported notebook runtime
 is detected. Jupyter commands are buffered while a cell runs and published as
 one widget-state update from IPython's ``post_run_cell`` event. Marimo commands
 are published immediately to a persistent ``mo.ui.anywidget`` output.
+The explicit SVG renderer uses ordinary Jupyter display updates without widgets.
 """
 
 from __future__ import annotations
@@ -13,6 +14,7 @@ from pathlib import Path
 
 
 _USE_SIDECAR = True
+_RENDERER = "widget"
 _WIDGET_CLASS = None
 
 
@@ -66,13 +68,73 @@ def use_sidecar(enabled=True):
     _USE_SIDECAR = bool(enabled)
 
 
-def create_session():
+def uses_svg_renderer():
+    """Whether this Jupyter kernel was configured for plain SVG output."""
+    if _RENDERER != "svg" or _is_marimo_running():
+        return False
+    shell = _get_shell()
+    return shell is not None and getattr(shell, "kernel", None) is not None
+
+
+def create_session(svg_snapshot=None):
     """Create a session for the active supported notebook runtime."""
+    if uses_svg_renderer():
+        return SVGSession(_get_shell(), svg_snapshot)
     if _is_marimo_available():
         return MarimoSession()
     if not is_available():
         return None
     return NotebookSession(_get_shell(), use_sidecar=_USE_SIDECAR)
+
+
+class SVGSession:
+    """Refresh one ordinary SVG display after each Jupyter cell."""
+
+    def __init__(self, shell, snapshot):
+        self._shell = shell
+        self._snapshot = snapshot
+        self._display = None
+        self._last_svg = None
+        self._cell_active = True
+        self._closed = False
+        self.started = False
+
+    def emit(self, command):
+        if self._closed:
+            raise RuntimeError("notebook turtle session is closed")
+        if not self.started:
+            self._shell.events.register("pre_run_cell", self._pre_run_cell)
+            self._shell.events.register("post_run_cell", self._post_run_cell)
+            self.started = True
+
+    def _pre_run_cell(self, _info=None):
+        self._cell_active = True
+
+    def _post_run_cell(self, _result=None):
+        self._cell_active = False
+        self.flush()
+
+    def flush(self):
+        if self._closed or self._cell_active:
+            return False
+        from IPython.display import SVG, display
+
+        svg = self._snapshot()
+        if svg != self._last_svg:
+            if self._display is None:
+                self._display = display(SVG(svg), display_id=True)
+            else:
+                self._display.update(SVG(svg))
+            self._last_svg = svg
+        return True
+
+    def close(self):
+        if self._closed:
+            return
+        self._closed = True
+        if self.started:
+            self._shell.events.unregister("pre_run_cell", self._pre_run_cell)
+            self._shell.events.unregister("post_run_cell", self._post_run_cell)
 
 
 def _get_widget_class():

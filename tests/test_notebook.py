@@ -2,6 +2,7 @@ import contextlib
 import types
 import unittest
 import warnings
+import xml.etree.ElementTree as ET
 from unittest import mock
 
 from basthon import turtle
@@ -315,6 +316,7 @@ class NotebookBackendSelectionTests(unittest.TestCase):
     def tearDown(self):
         self._reset_turtle()
         _notebook.use_sidecar(True)
+        _notebook._RENDERER = "widget"
 
     @staticmethod
     def _reset_turtle():
@@ -402,6 +404,175 @@ class NotebookBackendSelectionTests(unittest.TestCase):
 
         with self.assertRaisesRegex(RuntimeError, "before drawing"):
             turtle.jupyter_sidecar(True)
+
+
+class SVGNotebookTests(unittest.TestCase):
+    def setUp(self):
+        NotebookBackendSelectionTests._reset_turtle()
+        self.shell = FakeShell()
+        self.handle = mock.Mock()
+        self.display = mock.Mock(return_value=self.handle)
+        patches = (
+            mock.patch.object(_notebook, "_get_shell", return_value=self.shell),
+            mock.patch.object(_notebook, "_is_marimo_running", return_value=False),
+            mock.patch.object(
+                _notebook, "_get_widget_class", side_effect=AssertionError
+            ),
+            mock.patch.dict(
+                "sys.modules",
+                {
+                    "IPython.display": types.SimpleNamespace(
+                        SVG=lambda data: data, display=self.display
+                    ),
+                },
+            ),
+        )
+        for patch in patches:
+            patch.start()
+            self.addCleanup(patch.stop)
+        self.addCleanup(NotebookBackendSelectionTests._reset_turtle)
+        self.addCleanup(setattr, _notebook, "_RENDERER", "widget")
+        turtle.jupyter_renderer("svg")
+
+    def finish_cell(self, error=None):
+        self.shell.events.trigger("post_run_cell", error)
+        call = self.handle.update.call_args or self.display.call_args
+        return ET.fromstring(call.args[0])
+
+    def nodes(self, root, tag):
+        nodes = root.findall(".//{http://www.w3.org/2000/svg}" + tag)
+        if tag == "line":
+            # Turtle initialization also adds a zero-length segment.
+            nodes = [
+                node
+                for node in nodes
+                if (node.get("x1"), node.get("y1")) != (node.get("x2"), node.get("y2"))
+            ]
+        return nodes
+
+    def test_drawing_accumulates_in_one_display_without_finalizing(self):
+        namespace = {}
+        exec(
+            "from basthon.turtle import *\n"
+            "jupyter_renderer('svg')\n"
+            "pen = Turtle()\n"
+            "pen.forward(100)",
+            namespace,
+        )
+        pen = namespace["pen"]
+        self.display.assert_not_called()
+        first = self.finish_cell()
+        self.display.assert_called_once()
+        self.assertEqual(self.display.call_args.kwargs, {"display_id": True})
+        self.assertEqual(len(self.nodes(first, "line")), 1)
+        self.assertEqual(self.nodes(first, "line")[0].get("x2"), "100")
+        self.assertFalse(pen.screen._scene_finished)
+        self.assertEqual(pen.screen.turtle_canvas._children, [])
+
+        self.shell.events.trigger("pre_run_cell")
+        pen.left(90)
+        pen.forward(50)
+        second = self.finish_cell()
+        self.display.assert_called_once()
+        self.handle.update.assert_called_once()
+        self.assertEqual(len(self.nodes(second, "line")), 2)
+        self.assertEqual(self.nodes(second, "line")[-1].get("y2"), "-50")
+        self.assertEqual(len(self.nodes(second, "polygon")), 1)
+        self.assertEqual(
+            self.nodes(second, "polygon")[0].get("transform"),
+            "translate(100.0, -50.0) rotate(-180.0, 0, 0)",
+        )
+        self.assertFalse(self.nodes(second, "animate"))
+
+    def test_idle_cells_do_not_refresh_and_errors_still_publish(self):
+        turtle.forward(20)
+        self.finish_cell(RuntimeError("after drawing"))
+        self.shell.events.trigger("pre_run_cell")
+        self.finish_cell()
+        self.handle.update.assert_not_called()
+
+    def test_clear_preserves_other_turtles_and_later_drawing(self):
+        first = turtle.Turtle()
+        second = turtle.Turtle()
+        first.forward(10)
+        second.forward(20)
+        self.finish_cell()
+        self.shell.events.trigger("pre_run_cell")
+        first.clear()
+        first.forward(5)
+        svg = self.finish_cell()
+        self.assertEqual([n.get("x2") for n in self.nodes(svg, "line")], ["20", "15"])
+        self.assertEqual(len(self.nodes(svg, "polygon")), 2)
+
+    def test_new_turtles_shapes_and_done_do_not_duplicate_turtles(self):
+        first = turtle.Turtle()
+        first.forward(10)
+        turtle.done()
+        self.display.assert_not_called()
+        self.finish_cell()
+        self.shell.events.trigger("pre_run_cell")
+        second = turtle.Turtle(shape="circle")
+        second.forward(20)
+        first.shape("square")
+        svg = self.finish_cell()
+        self.assertEqual(len(self.nodes(svg, "circle")), 1)
+        self.assertEqual(len(self.nodes(svg, "rect")), 1)
+        self.assertTrue(
+            all(n.get("opacity") == "0" for n in self.nodes(svg, "polygon"))
+        )
+
+    def test_stamp_and_restart_refresh_without_live_commands(self):
+        turtle.forward(10)
+        self.finish_cell()
+        self.shell.events.trigger("pre_run_cell")
+        turtle.stamp()
+        svg = self.finish_cell()
+        self.assertEqual(len(self.nodes(svg, "polygon")), 2)
+        self.shell.events.trigger("pre_run_cell")
+        turtle.restart()
+        svg = self.finish_cell()
+        self.assertFalse(self.nodes(svg, "line"))
+        self.assertFalse(self.nodes(svg, "polygon"))
+        self.shell.events.trigger("pre_run_cell")
+        turtle.forward(30)
+        svg = self.finish_cell()
+        self.assertEqual(len(self.nodes(svg, "line")), 1)
+        self.assertEqual(len(self.nodes(svg, "polygon")), 1)
+        self.display.assert_called_once()
+
+    def test_configuration_and_animation_are_validated(self):
+        with self.assertRaisesRegex(ValueError, "renderer"):
+            turtle.jupyter_renderer("unknown")
+        screen = turtle.Screen()
+        self.assertFalse(screen._animate)
+        turtle.jupyter_renderer("widget")
+        self.assertTrue(screen._animate)
+        turtle.jupyter_renderer("svg")
+        with self.assertRaisesRegex(ValueError, "animation"):
+            turtle.animation("on")
+        turtle.forward(10)
+        with self.assertRaisesRegex(RuntimeError, "before drawing"):
+            turtle.jupyter_renderer("widget")
+
+    def test_close_removes_hooks_and_prevents_further_updates(self):
+        turtle.forward(10)
+        self.finish_cell()
+        session = turtle.Screen()._standalone_session
+        session.close()
+        session.close()
+        self.assertFalse(session.flush())
+        self.assertEqual(
+            self.shell.events.callbacks, {"pre_run_cell": [], "post_run_cell": []}
+        )
+        with self.assertRaisesRegex(RuntimeError, "closed"):
+            session.emit({"type": "move"})
+
+    def test_svg_selection_does_not_affect_other_hosts(self):
+        with mock.patch.object(_notebook, "_get_shell", return_value=None):
+            self.assertFalse(_notebook.uses_svg_renderer())
+            self.assertTrue(turtle.Screen()._animate)
+        with mock.patch.object(_notebook, "_is_marimo_running", return_value=True):
+            self.assertFalse(_notebook.uses_svg_renderer())
 
 
 if __name__ == "__main__":
