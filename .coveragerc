@@ -1,0 +1,13 @@
+[run]
+branch = True
+source = basthon.turtle
+relative_files = True
+concurrency = thread
+
+[paths]
+package =
+    basthon/turtle
+    */site-packages/basthon/turtle
+
+[report]
+skip_empty = True

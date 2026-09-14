@@ -13,7 +13,7 @@ class StartupTests(unittest.TestCase):
         previous = sys.modules.pop("turtle", None)
         self.addCleanup(self._restore_turtle, previous)
 
-        shim_dir = str(Path(__file__).parents[1] / "wheel-data")
+        shim_dir = str(Path(__file__).parents[2] / "wheel-data")
         with mock.patch.object(sys, "path", [shim_dir, *sys.path]):
             turtle = importlib.import_module("turtle")
 
