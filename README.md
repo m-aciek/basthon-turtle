@@ -77,6 +77,9 @@ example.
 
 ## Development
 
+See [the testing guide](docs/testing.md) for the Python matrix, environment
+jobs, local test commands, and informational coverage reports.
+
 Run the headless CPython `turtle` compatibility baseline from this checkout:
 
 ```console

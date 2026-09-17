@@ -8,7 +8,7 @@ import zipfile
 from pathlib import Path
 
 
-PROJECT_ROOT = Path(__file__).parents[1]
+PROJECT_ROOT = Path(__file__).parents[2]
 
 
 @unittest.skipUnless(shutil.which("uv"), "uv is required to build distributions")
