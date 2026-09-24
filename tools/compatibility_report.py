@@ -7,6 +7,7 @@ import inspect
 import io
 import json
 import math
+from html import escape
 from pathlib import Path
 import platform
 import sys
@@ -17,7 +18,8 @@ from .compatibility_checks import cases, observe
 
 SCHEMA_VERSION = 1
 BASELINE = Path(__file__).resolve().parents[1] / "tests/compatibility/baseline.json"
-SECTIONS = ("Public API", "Vec2D API", "TNavigator API", "Vec2D", "TNavigator")
+BADGE_DIR = Path(__file__).resolve().parents[1] / "docs"
+SECTIONS = ("Public API", "Vec2D API", "TNavigator API", "Vec2D", "TNavigator", "TPen")
 
 
 def load_implementations():
@@ -294,7 +296,7 @@ def human_report(report):
     ]
     for section in SECTIONS:
         checks = [c for c in report["checks"] if c["section"] == section]
-        lines.extend(["", section])
+        lines.extend(["", "Pen state (TPen)" if section == "TPen" else section])
         if section.endswith("API"):
             for kind, label in (
                 ("symbol", "available symbols"),
@@ -336,7 +338,7 @@ def human_report(report):
             if "/signature/" in check["id"]:
                 detail += f"; expected {check['reference']}, got {check['candidate']}"
             elif (
-                check["section"] in ("Vec2D", "TNavigator")
+                check["section"] in ("Vec2D", "TNavigator", "TPen")
                 and check["candidate"] is not None
             ):
                 errors = list(exceptions(check["candidate"]))
@@ -354,6 +356,45 @@ def human_report(report):
     return "\n".join(lines)
 
 
+def badge_svg(label, checks):
+    applicable = [check for check in checks if check["status"] != "not_applicable"]
+    passed = sum(check["status"] == "compatible" for check in applicable)
+    message = f"{passed}/{len(applicable)}" if applicable else "n/a"
+    left, right = len(label) * 7 + 12, len(message) * 7 + 12
+    title = escape(label + ": " + message)
+    return (
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{left + right}" height="20" '
+        f'role="img" aria-label="{title}">\n'
+        f"  <title>{title}</title>\n"
+        f'  <rect width="{left}" height="20" fill="#555"/>\n'
+        f'  <rect x="{left}" width="{right}" height="20" fill="#007ec6"/>\n'
+        '  <g fill="#fff" text-anchor="middle" '
+        'font-family="Verdana,DejaVu Sans,sans-serif" font-size="11">\n'
+        f'    <text x="{left / 2}" y="14">{escape(label)}</text>\n'
+        f'    <text x="{left + right / 2}" y="14">{message}</text>\n'
+        "  </g>\n</svg>\n"
+    )
+
+
+def compatibility_badges(report):
+    badges = {}
+    for name, label, section, prefix in (
+        ("api-symbols", "API symbols", "Public API", "Public API/symbol/"),
+        ("vec2d", "Vec2D checks", "Vec2D", ""),
+        ("tnavigator", "TNavigator checks", "TNavigator", ""),
+        ("pen-state", "pen state", "TPen", ""),
+    ):
+        checks = [
+            check
+            for check in report["checks"]
+            if check["section"] == section
+            and (not prefix or check["id"].startswith(prefix))
+        ]
+        label = "CPython " + report["reference"]["python_minor"] + " " + label
+        badges[name + "-badge.svg"] = badge_svg(label, checks)
+    return badges
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -362,6 +403,23 @@ def main(argv=None):
     group = parser.add_mutually_exclusive_group()
     group.add_argument("--check-baseline", nargs="?", const=BASELINE, type=Path)
     group.add_argument("--write-baseline", nargs="?", const=BASELINE, type=Path)
+    badge_group = parser.add_mutually_exclusive_group()
+    badge_group.add_argument(
+        "--check-badges",
+        nargs="?",
+        const=BADGE_DIR,
+        type=Path,
+        metavar="DIRECTORY",
+        help="check README badges (default: docs)",
+    )
+    badge_group.add_argument(
+        "--write-badges",
+        nargs="?",
+        const=BADGE_DIR,
+        type=Path,
+        metavar="DIRECTORY",
+        help="generate README badges (default: docs)",
+    )
     args = parser.parse_args(argv)
     try:
         # Keep JSON parseable even if an implementation prints diagnostics.
@@ -378,6 +436,23 @@ def main(argv=None):
             args.write_baseline.write_text(
                 json.dumps(make_baseline(report), indent=2, sort_keys=True) + "\n"
             )
+        if args.write_badges:
+            args.write_badges.mkdir(parents=True, exist_ok=True)
+            for name, svg in compatibility_badges(report).items():
+                (args.write_badges / name).write_text(svg)
+        if args.check_badges:
+            stale = [
+                name
+                for name, svg in compatibility_badges(report).items()
+                if not (args.check_badges / name).is_file()
+                or (args.check_badges / name).read_text() != svg
+            ]
+            if stale:
+                raise ValueError(
+                    "Missing or stale badges: "
+                    + ", ".join(stale)
+                    + "; run --write-badges and review the diff"
+                )
     except (OSError, RuntimeError, TypeError, ValueError, KeyError) as error:
         parser.exit(2, f"compatibility report: {error}\n")
     print(

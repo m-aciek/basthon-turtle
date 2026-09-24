@@ -1,11 +1,13 @@
 """Small differential cases guided by CPython Lib/test/test_turtle.py.
 
-Only public observations are used; no screen, pen, or private state adapters.
+Only public observations are used. Pen fixtures suppress live output only.
 Navigator operations are data so generated sequences can use the same runner.
 """
 
 import math
 from dataclasses import dataclass
+
+from .compatibility_pen import pen_cases
 
 
 @dataclass(frozen=True)
@@ -154,6 +156,7 @@ NAVIGATOR_CASES = [
 
 
 def cases():
+    yield from pen_cases()
     for name, operation in VECTOR_CASES:
         yield Case(
             name,

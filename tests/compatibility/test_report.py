@@ -8,6 +8,7 @@ import tempfile
 import types
 import unittest
 from unittest import mock
+import xml.etree.ElementTree as ET
 
 from basthon.turtle import _startup
 from tools import compatibility_report as report
@@ -38,7 +39,7 @@ class ReportTests(unittest.TestCase):
             ):
                 report.load_implementations()
 
-    def test_report_never_initializes_a_backend(self):
+    def test_report_never_initializes_tk_or_a_live_backend(self):
         with (
             mock.patch("tkinter.Tk", side_effect=AssertionError("Tk opened")) as tk,
             mock.patch(
@@ -47,16 +48,14 @@ class ReportTests(unittest.TestCase):
             mock.patch(
                 "webbrowser.open", side_effect=AssertionError("browser opened")
             ) as browser,
-            mock.patch.object(
-                self.candidate, "Screen", side_effect=AssertionError("Screen created")
-            ) as screen,
             mock.patch.object(self.candidate._notebook, "create_session") as notebook,
             mock.patch.object(
                 self.candidate._standalone, "create_session"
             ) as standalone,
+            mock.patch.object(self.candidate._pyodide, "create_session") as pyodide,
         ):
             report.build_report(*report.load_implementations())
-        for backend in (tk, tcl, browser, screen, notebook, standalone):
+        for backend in (tk, tcl, browser, notebook, standalone, pyodide):
             backend.assert_not_called()
 
     def test_missing_symbol_and_whole_behavior_section(self):
@@ -227,6 +226,70 @@ class ReportTests(unittest.TestCase):
                     self.assertEqual(
                         report.main(["--check-baseline", str(baseline_path)]), 1
                     )
+
+    def test_badges_count_only_their_applicable_checks(self):
+        current = {
+            "reference": {"python_minor": "3.14"},
+            "checks": [
+                {
+                    "id": section + "/symbol/" + status,
+                    "section": section,
+                    "status": status,
+                }
+                for section in ("Public API", "Vec2D", "TNavigator", "TPen")
+                for status in (
+                    "compatible",
+                    "missing",
+                    "incompatible",
+                    "not_applicable",
+                )
+            ]
+            + [
+                {
+                    "id": "Public API/" + kind + "/extra",
+                    "section": "Public API",
+                    "status": "compatible",
+                }
+                for kind in ("signature", "class")
+            ]
+            + [{"section": "Vec2D API", "status": "compatible"}],
+        }
+        expected = {
+            "api-symbols-badge.svg": "API symbols",
+            "vec2d-badge.svg": "Vec2D checks",
+            "tnavigator-badge.svg": "TNavigator checks",
+            "pen-state-badge.svg": "pen state",
+        }
+        badges = report.compatibility_badges(current)
+        self.assertEqual(badges.keys(), expected.keys())
+        for name, label in expected.items():
+            with self.subTest(badge=name):
+                svg = ET.fromstring(badges[name])
+                self.assertEqual(svg.attrib["aria-label"], f"CPython 3.14 {label}: 1/3")
+        current["checks"] = []
+        for svg in report.compatibility_badges(current).values():
+            self.assertIn(": n/a", svg)
+
+    def test_cli_detects_stale_or_missing_badges(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "badges"
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(report.main(["--write-badges", str(path)]), 0)
+                self.assertEqual(report.main(["--check-badges", str(path)]), 0)
+            for name, svg in report.compatibility_badges(self.report).items():
+                for missing in (False, True):
+                    with self.subTest(badge=name, missing=missing):
+                        if missing:
+                            (path / name).unlink()
+                        else:
+                            (path / name).write_text("stale")
+                        with contextlib.redirect_stderr(io.StringIO()) as errors:
+                            with self.assertRaises(SystemExit) as caught:
+                                report.main(["--check-badges", str(path)])
+                        self.assertEqual(caught.exception.code, 2)
+                        self.assertIn(name, errors.getvalue())
+                        self.assertIn("--write-badges", errors.getvalue())
+                        (path / name).write_text(svg)
 
 
 if __name__ == "__main__":

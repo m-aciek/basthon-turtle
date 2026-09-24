@@ -17,6 +17,8 @@ class NavigationTests(unittest.TestCase):
 
     def test_vector_and_supported_navigation_cases(self):
         for case in cases():
+            if case.symbol not in ("Vec2D", "TNavigator"):
+                continue
             if case.name == "teleport":
                 continue  # Not implemented by Basthon yet.
             with self.subTest(case=case.name, symbol=case.symbol):
@@ -75,9 +77,7 @@ class NavigationTests(unittest.TestCase):
                     getattr(nav, units)(*args)
                     self.assertEqual(nav.heading(), 0)
                     nav.left(fullcircle / 4)
-                    expected_heading = fullcircle * (
-                        0.75 if mode == "logo" else 0.25
-                    )
+                    expected_heading = fullcircle * (0.75 if mode == "logo" else 0.25)
                     self.assertAlmostEqual(nav.heading(), expected_heading)
                     nav.home()
                     nav.forward(10)
@@ -88,8 +88,9 @@ class NavigationTests(unittest.TestCase):
 
     def test_invalid_mode_uses_configured_mode(self):
         for mode in ("standard", "world", "logo"):
-            with self.subTest(mode=mode), mock.patch.dict(
-                self.candidate._CFG, {"mode": mode}
+            with (
+                self.subTest(mode=mode),
+                mock.patch.dict(self.candidate._CFG, {"mode": mode}),
             ):
                 output = io.StringIO()
                 with contextlib.redirect_stdout(output):
