@@ -1,5 +1,10 @@
 # basthon-turtle
 
+[![CPython public API symbols](docs/api-symbols-badge.svg)](docs/compatibility.md)
+[![CPython Vec2D behavior checks](docs/vec2d-badge.svg)](docs/compatibility.md)
+[![CPython TNavigator behavior checks](docs/tnavigator-badge.svg)](docs/compatibility.md)
+[![CPython pen state checks](docs/pen-state-badge.svg)](docs/compatibility.md)
+
 A browser-friendly implementation of Python's `turtle` module. It supports
 persistent Jupyter and Marimo widgets, the existing static SVG workflow, and a
 proof-of-concept live standalone mode for regular CPython sessions.
@@ -88,7 +93,15 @@ python -m tools.compatibility_report --json
 ```
 
 Use CPython 3.14 with Tkinter installed; no display is needed. This measures
-public API coverage and backend-independent `Vec2D`/`TNavigator` behavior.
+public API coverage, `Vec2D`/`TNavigator` behavior, and selected `TPen` state
+operations. The badges report available public symbols and passing behavioral
+checks separately; they do not measure overall compatibility.
 Tk/rendering compatibility is not measured, Basthon extensions do not reduce
 compatibility, and known failures are expected in the initial baseline.
 See [the developer guide](docs/compatibility.md) for tests and regression checks.
+
+## License
+
+This project uses **GPL-3.0-or-later** because it builds on the GPLv3-licensed
+Basthon turtle implementation by Romain Casati, itself a port of Brython's
+turtle module. The original attribution and notices are retained in the source.

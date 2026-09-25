@@ -22,6 +22,8 @@ jobs:
         run: python -m unittest discover -s tests/compatibility -v
       - name: Check baseline
         run: python -m tools.compatibility_report --check-baseline
+      - name: Check README compatibility badges
+        run: python -m tools.compatibility_report --check-badges
       - name: Write detailed observations
         if: always()
         run: python -m tools.compatibility_report --json > compatibility-report.json

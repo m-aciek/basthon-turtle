@@ -112,6 +112,13 @@ without a localhost server or WebSocket; see ``docs/pyodide.md`` for a
 complete example.
 
 
+License
+-------
+
+This project uses GPL-3.0-or-later. It builds on the GPLv3-licensed Basthon
+turtle implementation by Romain Casati, itself a port of Brython's turtle
+module. The original attribution and notices are retained in the source.
+
 Credits
 -------
 - bearney74

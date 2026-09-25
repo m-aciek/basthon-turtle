@@ -10,7 +10,8 @@ python -m unittest discover -s tests/compatibility -v
 ```
 
 No third-party Python dependencies, display, Tk initialization, or browser are
-needed. The stdlib module imports Tkinter, so an interpreter built without it
+needed. Pen cases create in-memory Basthon SVG objects with live output disabled.
+The stdlib module imports Tkinter, so an interpreter built without it
 cannot run the report. CI uses CPython 3.14 on Linux without a display.
 
 The reference is the running interpreter's `turtle.py`, located with
@@ -22,10 +23,11 @@ reference. The report includes both source paths and the full interpreter
 version; it never uses the adjacent CPython checkout as its runtime reference.
 
 The report measures backend-independent compatibility only. Public module names
-and signatures are inspected, but behavioral checks cover only `Vec2D` and bare
-`TNavigator`. It does not measure `TPen`, `Turtle`, screen behavior, Tk, rendering,
-SVG, browsers, or events. Finding a name or a matching signature is not evidence
-that the corresponding function works. There is no combined compatibility score.
+and signatures are inspected, but behavioral checks cover only `Vec2D`, bare
+`TNavigator`, and selected `TPen` state operations. It does not measure complete
+`Turtle` behavior, screen behavior, Tk, rendering, SVG, browsers, or events.
+Finding a name or a matching signature is not evidence that the corresponding
+function works. There is no combined compatibility score.
 
 The module inventory uses CPython's `__all__`; availability means that the
 candidate exposes that attribute, even if its own `__all__` omits it. Both export
@@ -40,10 +42,10 @@ parameter names. A permissive `(*args, **kwargs)` signature therefore differs;
 this metric measures signature equality, not every possible call's validity.
 Uninspectable reference signatures are marked `not_applicable`.
 
-Cases in `tools/compatibility_checks.py` are guided by `TestVec2D` and
-`TestTNavigator` in CPython's `Lib/test/test_turtle.py`. They use public positions
-and headings instead of `_orient` or `_position`.
-No adapters implement movement or attach screens to make the candidate pass.
+Vector and navigation cases in `tools/compatibility_checks.py` are guided by
+`TestVec2D` and `TestTNavigator` in CPython's `Lib/test/test_turtle.py`. They use
+public positions and headings instead of `_orient` or `_position`.
+No adapters implement movement or attach screens to make navigation pass.
 Pickling, pen-dependent circle behavior, and private/Tk tests are omitted.
 Navigator cases supply sequences of public calls to the same runner for each
 implementation. Tagged arguments construct each implementation's own vectors
@@ -62,6 +64,52 @@ The CPython 3.14.0 baseline has **115/126** module symbols available,
 **81/115** matching inspectable signatures on available symbols, **14/14**
 passing `Vec2D` cases, and **32/33** passing `TNavigator` cases. The remaining
 navigation case is the unimplemented `teleport()`.
+
+## Pen state checks
+
+`tools/compatibility_pen.py` adds **17/18** passing differential cases against
+CPython 3.14.0. They cover initial state, pen up/down and aliases, width, speed
+names/numbers/boundaries/rounding, invalid speed, and `pen()` dictionaries,
+keyword precedence, unknown keys, state restoration, and snapshot independence.
+Public getters are observed before and after every operation; call results,
+input dictionary mutations, and exception types are compared too.
+
+The reference is a real CPython `TPen`, whose drawing hooks are already no-ops.
+Basthon's `TPen` depends on a turtle and screen, so its cases use a real `Turtle`
+with a fresh in-memory SVG screen. Only `Screen._emit_live` is suppressed, to
+prevent notebook, Pyodide, and standalone session creation. The singleton screen
+registry and output method are restored after each case, including on failure.
+The fixture never replaces public pen methods or supplies missing state.
+
+The failing case compares the complete dictionary returned by `pen()`: Basthon
+omits `resizemode`, `stretchfactor`, `shearfactor`, `outline`, and `tilt`.
+These omissions count as incompatibility. Restoring the fields returned by each
+implementation is tested separately. Color conversion, visibility changes,
+shape transformations, and rendering effects are outside this initial subset.
+
+## README badges
+
+The four README badges are checked-in SVGs generated from the live report, not
+from the baseline:
+
+| Badge | CPython 3.14.0 result | Scope |
+| --- | --- | --- |
+| API symbols | 115/126 | Available module symbols from CPython's `__all__`; excludes class-type and signature checks |
+| Vec2D checks | 14/14 | Passing/applicable vector behavior cases |
+| TNavigator checks | 32/33 | Passing/applicable navigation behavior cases |
+| Pen state | 17/18 | Passing/applicable pen state cases |
+
+Missing candidate features count as failures, and `not_applicable` cases are
+excluded. These are separate measures, not an overall compatibility percentage.
+CI checks that all four badges are current. After changing these checks or their
+results, regenerate the badges using CPython 3.14 and review the diff:
+
+```console
+python -m tools.compatibility_report --write-badges
+python -m tools.compatibility_report --check-badges
+```
+
+## Navigation and regression baseline
 
 Navigation uses `Vec2D` for positions and orientations and works independently
 of a screen. SVG animation separately accumulates signed rotation angles so
