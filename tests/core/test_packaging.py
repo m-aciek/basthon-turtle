@@ -7,6 +7,7 @@ import unittest
 import zipfile
 from pathlib import Path
 
+from tools.check_release import check_archive, check_version
 
 PROJECT_ROOT = Path(__file__).parents[2]
 
@@ -30,9 +31,51 @@ class PackagingTests(unittest.TestCase):
             cwd=PROJECT_ROOT,
             capture_output=True,
             text=True,
+            check=False,
         )
         if result.returncode:
             raise RuntimeError(result.stdout + result.stderr)
+
+    def test_release_archives(self):
+        for path in self.dist.iterdir():
+            if path.name == ".gitignore":
+                continue
+            version = path.name.split("-")[1].removesuffix(".tar.gz")
+            with self.subTest(path=path):
+                check_archive(path, version)
+
+    def test_release_rejects_missing_notebook_asset(self):
+        wheel = next(self.dist.glob("*.whl"))
+        version = wheel.name.split("-")[1]
+        with tempfile.TemporaryDirectory() as directory:
+            broken = Path(directory) / wheel.name
+            with (
+                zipfile.ZipFile(wheel) as source,
+                zipfile.ZipFile(broken, "w") as target,
+            ):
+                for name in source.namelist():
+                    if name != "basthon/turtle/notebook.mjs":
+                        target.writestr(name, source.read(name))
+            with self.assertRaisesRegex(ValueError, "missing files.*notebook.mjs"):
+                check_archive(broken, version)
+
+    def test_release_rejects_missing_sdist_startup_hook(self):
+        sdist = next(self.dist.glob("*.tar.gz"))
+        version = sdist.name.split("-")[1].removesuffix(".tar.gz")
+        with tempfile.TemporaryDirectory() as directory:
+            broken = Path(directory) / sdist.name
+            with (
+                tarfile.open(sdist) as source,
+                tarfile.open(broken, "w:gz") as target,
+            ):
+                for member in source.getmembers():
+                    if not member.name.endswith("/wheel-data/basthon_turtle.pth"):
+                        target.addfile(
+                            member,
+                            source.extractfile(member) if member.isfile() else None,
+                        )
+            with self.assertRaisesRegex(ValueError, "missing files.*basthon_turtle.pth"):
+                check_archive(broken, version)
 
     def test_sdist_includes_documentation_examples_and_test_dependencies(self):
         with tarfile.open(next(self.dist.glob("*.tar.gz"))) as archive:
@@ -78,6 +121,28 @@ class PackagingTests(unittest.TestCase):
                 for name in names
             )
         )
+
+
+class ReleaseVersionTests(unittest.TestCase):
+    def test_stable_tag_and_manual_run(self):
+        check_version("1.2.3", "v1.2.3")
+        check_version("1.2.3")
+
+    def test_mismatched_tag(self):
+        for tag in ("v1.2.4", "1.2.3", "v1.2.3rc1"):
+            with (
+                self.subTest(tag=tag),
+                self.assertRaisesRegex(ValueError, "does not match"),
+            ):
+                check_version("1.2.3", tag)
+
+    def test_non_stable_or_noncanonical_version(self):
+        for version in ("1.2", "1.2.3rc1", "1.2.3.dev1", "01.2.3", "1.2.3+local"):
+            with (
+                self.subTest(version=version),
+                self.assertRaisesRegex(ValueError, "stable"),
+            ):
+                check_version(version)
 
 
 if __name__ == "__main__":
